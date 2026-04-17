@@ -18,9 +18,9 @@
         />
         <img
           v-if="!rail"
-          src="@/assets/logo.svg"
+          :src="theme.global.name.value === 'dark' ? logoDark : logoLight"
           alt="Нюансы"
-          style="height: 30px; display: block;"
+          style="height: 34px; display: block;"
         />
       </div>
 
@@ -126,6 +126,8 @@ import { useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import logoLight from '@/assets/logo.svg'
+import logoDark from '@/assets/logo-dark.svg'
 
 const router = useRouter()
 const auth = useAuthStore()
