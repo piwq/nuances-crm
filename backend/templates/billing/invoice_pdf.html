@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #333; }
+  .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
+  .invoice-title { font-size: 24px; font-weight: bold; color: #1a237e; }
+  .invoice-meta { text-align: right; }
+  .invoice-meta .number { font-size: 16px; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  th { background: #1a237e; color: white; padding: 8px 12px; text-align: left; }
+  td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) { background: #f5f5f5; }
+  .totals { margin-top: 20px; text-align: right; }
+  .totals table { width: 300px; margin-left: auto; }
+  .totals td { border: none; padding: 4px 12px; }
+  .total-row td { font-weight: bold; font-size: 14px; border-top: 2px solid #333; }
+  .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; }
+  .status-paid { background: #e8f5e9; color: #2e7d32; }
+  .status-sent { background: #e3f2fd; color: #1565c0; }
+  .status-draft { background: #f5f5f5; color: #616161; }
+  .parties { display: flex; gap: 40px; margin: 20px 0; }
+  .party { flex: 1; }
+  .party h3 { font-size: 11px; text-transform: uppercase; color: #999; margin-bottom: 8px; }
+  .party p { margin: 2px 0; }
+  .notes { margin-top: 30px; padding: 12px; background: #f9f9f9; border-left: 3px solid #1a237e; }
+  .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #999; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="invoice-title">СЧЁТ НА ОПЛАТУ</div>
+    <div>Юридическое агентство</div>
+  </div>
+  <div class="invoice-meta">
+    <div class="number">{{ invoice.invoice_number }}</div>
+    <div>Дата: {{ invoice.issue_date }}</div>
+    <div>Срок оплаты: {{ invoice.due_date }}</div>
+    <div>
+      <span class="status-badge status-{{ invoice.status }}">
+        {{ invoice.get_status_display }}
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="parties">
+  <div class="party">
+    <h3>Исполнитель</h3>
+    <p><strong>Юридическое агентство</strong></p>
+  </div>
+  <div class="party">
+    <h3>Клиент</h3>
+    <p><strong>{{ invoice.client }}</strong></p>
+    {% if invoice.client.email %}<p>{{ invoice.client.email }}</p>{% endif %}
+    {% if invoice.client.phone %}<p>{{ invoice.client.phone }}</p>{% endif %}
+    {% if invoice.client.address %}<p>{{ invoice.client.address }}</p>{% endif %}
+  </div>
+  <div class="party">
+    <h3>Дело</h3>
+    <p><strong>{{ invoice.case.title }}</strong></p>
+    <p>{{ invoice.case.case_number }}</p>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Описание</th>
+      <th style="text-align:right;">Кол-во</th>
+      <th style="text-align:right;">Цена</th>
+      <th style="text-align:right;">Сумма</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in invoice.items.all %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ item.description }}</td>
+      <td style="text-align:right;">{{ item.quantity }}</td>
+      <td style="text-align:right;">{{ item.unit_price }} ₽</td>
+      <td style="text-align:right;">{{ item.amount }} ₽</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" style="text-align:center; color:#999;">Нет позиций</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr><td>Сумма без НДС:</td><td style="text-align:right;">{{ invoice.subtotal }} ₽</td></tr>
+    <tr><td>НДС ({{ invoice.tax_rate }}%):</td><td style="text-align:right;">{{ invoice.tax_amount }} ₽</td></tr>
+    <tr class="total-row"><td>ИТОГО:</td><td style="text-align:right;">{{ invoice.total }} ₽</td></tr>
+  </table>
+</div>
+
+{% if invoice.notes %}
+<div class="notes">
+  <strong>Примечания:</strong><br>{{ invoice.notes }}
+</div>
+{% endif %}
+
+{% if invoice.paid_date %}
+<p style="margin-top:20px; color: #2e7d32;"><strong>Оплачено: {{ invoice.paid_date }}</strong></p>
+{% endif %}
+
+<div class="footer">
+  Сформировано автоматически системой CRM
+</div>
+
+</body>
+</html>

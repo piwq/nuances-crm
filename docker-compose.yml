@@ -1,0 +1,114 @@
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-legal_crm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: "no"
+    command: >
+      sh -c "python manage.py migrate &&
+             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    volumes:
+      - ./backend:/app
+      - media_files:/app/media
+      - static_files:/app/staticfiles
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - backend_net
+      - frontend_net
+
+  redis:
+    image: redis:7-alpine
+    restart: "no"
+    networks:
+      - backend_net
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-28T22-35-53Z
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio-password}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - backend_net
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_started
+    networks:
+      - backend_net
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO...';
+      until /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-admin} ${MINIO_ROOT_PASSWORD:-minio-password} 2>/dev/null; do
+        sleep 1;
+      done;
+      /usr/bin/mc mb myminio/${MINIO_STORAGE_BUCKET_NAME:-legal-crm-media} --ignore-existing;
+      /usr/bin/mc anonymous set public myminio/${MINIO_STORAGE_BUCKET_NAME:-legal-crm-media};
+      exit 0;
+      "
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost}
+    restart: "no"
+    networks:
+      - frontend_net
+
+  nginx:
+    image: nginx:1.25-alpine
+    restart: "no"
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - static_files:/app/staticfiles:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - frontend_net
+
+volumes:
+  postgres_data:
+  minio_data:
+  media_files:
+  static_files:
+
+networks:
+  backend_net:
+  frontend_net:
