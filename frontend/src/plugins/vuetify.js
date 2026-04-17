@@ -54,22 +54,22 @@ export default createVuetify({
     VTextField: {
       variant: 'outlined',
       rounded: 'xs',
-      density: 'comfortable',
+      density: 'default',
     },
     VSelect: {
       variant: 'outlined',
       rounded: 'xs',
-      density: 'comfortable',
+      density: 'default',
     },
     VTextarea: {
       variant: 'outlined',
       rounded: 'xs',
-      density: 'comfortable',
+      density: 'default',
     },
     VAutocomplete: {
       variant: 'outlined',
       rounded: 'xs',
-      density: 'comfortable',
+      density: 'default',
     },
     VChip: {
       rounded: 'xs',
