@@ -5,53 +5,52 @@
       v-model="drawer"
       :rail="rail"
       permanent
-      class="glass-sidebar"
       elevation="0"
     >
-      <v-list-item
-        nav
-        class="py-6"
-      >
-        <template #prepend>
-          <v-btn
-            :icon="rail ? 'mdi-menu-open' : 'mdi-menu-open'"
-            variant="text"
-            :style="rail ? 'transform: rotate(180deg)' : ''"
-            @click="rail = !rail"
-          />
-        </template>
-        <v-list-item-title class="text-h5 font-weight-bold text-gradient px-2" v-if="!rail">
-          Legal CRM
-        </v-list-item-title>
-      </v-list-item>
+      <div class="sidebar-brand">
+        <v-btn
+          :icon="rail ? 'mdi-menu-open' : 'mdi-menu-open'"
+          variant="text"
+          color="primary"
+          size="small"
+          :style="rail ? 'transform: rotate(180deg)' : ''"
+          @click="rail = !rail"
+        />
+        <img
+          v-if="!rail"
+          src="@/assets/logo.svg"
+          alt="Нюансы"
+          style="height: 30px; display: block;"
+        />
+      </div>
 
-      <v-list density="compact" nav class="px-3">
+      <v-list density="compact" nav class="px-2">
         <v-list-item
           v-for="item in navItems"
           :key="item.to"
           :prepend-icon="item.icon"
           :title="item.title"
           :to="item.to"
-          rounded="xl"
-          active-class="bg-primary-lighten-4 text-primary font-weight-bold"
+          rounded="xs"
+          active-class="bg-primary text-white"
           class="mb-1"
         />
       </v-list>
 
       <template #append>
-        <v-list density="compact" nav class="px-3 pb-4">
+        <v-list density="compact" nav class="px-2 pb-3">
           <v-list-item
             v-if="auth.isAdmin"
             prepend-icon="mdi-account-group"
             title="Пользователи"
             to="/admin/users"
-            rounded="xl"
+            rounded="xs"
             class="mb-1"
           />
           <v-list-item
             :prepend-icon="theme.global.name.value === 'light' ? 'mdi-weather-night' : 'mdi-weather-sunny'"
             :title="theme.global.name.value === 'light' ? 'Темная тема' : 'Светлая тема'"
-            rounded="xl"
+            rounded="xs"
             class="mb-1"
             @click="toggleTheme"
           />
@@ -59,40 +58,34 @@
             prepend-icon="mdi-account-circle"
             title="Мой профиль"
             to="/profile"
-            rounded="xl"
+            rounded="xs"
             class="mb-1"
           />
           <v-list-item
             prepend-icon="mdi-logout"
             title="Выйти"
-            rounded="xl"
+            rounded="xs"
             class="mb-1"
             @click="handleLogout"
           />
-          
-          <v-list-item class="mt-4 pa-2 bg-surface rounded-xl border-1" v-if="!rail">
-            <template #prepend>
-              <v-avatar color="primary" size="36" elevation="2">
-                <v-img v-if="auth.user?.avatar" :src="auth.user.avatar" />
-                <span v-else class="text-white text-body-1 font-weight-bold">
-                  {{ userInitials }}
-                </span>
-              </v-avatar>
-            </template>
-            <v-list-item-title class="text-body-2 font-weight-bold">
-              {{ auth.user?.full_name || auth.user?.username }}
-            </v-list-item-title>
-            <v-list-item-subtitle class="text-caption">
-              {{ auth.user?.role === 'admin' ? 'Администратор' : 'Юрист' }}
-            </v-list-item-subtitle>
-          </v-list-item>
+
+          <div class="sidebar-user-card" v-if="!rail">
+            <v-avatar color="primary" size="32">
+              <v-img v-if="auth.user?.avatar" :src="auth.user.avatar" />
+              <span v-else class="text-white text-caption font-weight-bold">{{ userInitials }}</span>
+            </v-avatar>
+            <div class="sidebar-user-info">
+              <div class="text-body-2 font-weight-semibold">{{ auth.user?.full_name || auth.user?.username }}</div>
+              <div class="text-caption text-medium-emphasis">{{ auth.user?.role === 'admin' ? 'Администратор' : 'Юрист' }}</div>
+            </div>
+          </div>
         </v-list>
       </template>
     </v-navigation-drawer>
 
     <!-- Main Content -->
     <v-main class="bg-background">
-      <v-container fluid class="pa-8">
+      <v-container fluid class="pa-6 pa-md-8">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
             <component :is="Component" />
@@ -177,3 +170,28 @@ async function handleLogout() {
   router.push({ name: 'Login' })
 }
 </script>
+
+<style scoped>
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px 12px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  margin-bottom: 8px;
+}
+
+.sidebar-user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.sidebar-user-info {
+  min-width: 0;
+  overflow: hidden;
+}
+</style>

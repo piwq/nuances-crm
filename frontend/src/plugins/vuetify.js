@@ -13,71 +13,70 @@ export default createVuetify({
     themes: {
       light: {
         colors: {
-          primary: '#6366F1', // Indigo 500
-          secondary: '#4F46E5', // Indigo 600
-          accent: '#EC4899', // Pink 500
-          error: '#EF4444',
-          warning: '#F59E0B',
-          info: '#3B82F6',
-          success: '#10B981',
-          surface: '#FFFFFF',
-          background: '#F8FAFC', // Slate 50
+          primary:    '#2E3C56', // ink-500
+          secondary:  '#7A1E2B', // claret-500
+          accent:     '#A8823B', // gilt-500
+          error:      '#8A3A1E', // rust-500
+          warning:    '#A8823B', // gilt-500
+          info:       '#2E3C56', // ink-500
+          success:    '#3F6B4C', // moss-500
+          surface:    '#FFFFFF',
+          background: '#FBFAF6', // parchment-50
         },
       },
       dark: {
         colors: {
-          primary: '#818CF8', // Indigo 400
-          secondary: '#6366F1', // Indigo 500
-          accent: '#F472B6', // Pink 400
-          error: '#F87171',
-          warning: '#FBBF24',
-          info: '#60A5FA',
-          success: '#34D399',
-          surface: '#1E293B', // Slate 800
-          background: '#0F172A', // Slate 900
+          primary:    '#7585A0', // ink-300
+          secondary:  '#F3DDE0', // claret-100
+          accent:     '#F5E9CF', // gilt-100
+          error:      '#F1DAD0', // rust-100
+          warning:    '#F5E9CF', // gilt-100
+          info:       '#D6DCE6', // ink-100
+          success:    '#DDE8DF', // moss-100
+          surface:    '#0E1729', // ink-800
+          background: '#070D1B', // ink-900
         },
       },
     },
   },
   defaults: {
-    VBtn: { 
-      variant: 'elevated', 
-      rounded: 'xl',
-      class: 'text-none font-weight-bold',
+    VBtn: {
+      variant: 'elevated',
+      rounded: 'xs',
+      class: 'text-none font-weight-semibold',
       elevation: 0,
     },
-    VCard: { 
-      rounded: 'xl',
+    VCard: {
+      rounded: 'xs',
       elevation: 0,
-      border: '1px solid rgba(var(--v-border-color), 0.12)',
+      border: true,
     },
-    VTextField: { 
-      variant: 'solo', 
-      flat: true,
-      rounded: 'lg',
+    VTextField: {
+      variant: 'outlined',
+      rounded: 'xs',
       density: 'comfortable',
-      bgColor: 'surface',
     },
-    VSelect: { 
-      variant: 'solo', 
-      flat: true,
-      rounded: 'lg',
+    VSelect: {
+      variant: 'outlined',
+      rounded: 'xs',
       density: 'comfortable',
-      bgColor: 'surface',
     },
-    VTextarea: { 
-      variant: 'solo', 
-      flat: true,
-      rounded: 'lg',
+    VTextarea: {
+      variant: 'outlined',
+      rounded: 'xs',
       density: 'comfortable',
-      bgColor: 'surface',
     },
-    VAutocomplete: { 
-      variant: 'solo', 
-      flat: true,
-      rounded: 'lg',
+    VAutocomplete: {
+      variant: 'outlined',
+      rounded: 'xs',
       density: 'comfortable',
-      bgColor: 'surface',
+    },
+    VChip: {
+      rounded: 'xs',
+    },
+    VNavigationDrawer: {
+      elevation: 0,
+      border: 'e',
     },
   },
 })
