@@ -33,19 +33,44 @@
 
         <v-window v-model="activeTab" class="mt-6">
           <v-window-item value="profile">
-            <v-form @submit.prevent="handleUpdateProfile">
+            <v-form ref="profileFormRef" @submit.prevent="handleUpdateProfile">
               <v-row>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="profileForm.first_name" label="Имя" required />
+                  <v-text-field
+                    v-model="profileForm.first_name"
+                    label="Имя"
+                    :rules="nameRules"
+                    @keypress="allowLettersOnly"
+                    required
+                  />
                 </v-col>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="profileForm.last_name" label="Фамилия" required />
+                  <v-text-field
+                    v-model="profileForm.last_name"
+                    label="Фамилия"
+                    :rules="nameRules"
+                    @keypress="allowLettersOnly"
+                    required
+                  />
                 </v-col>
                 <v-col cols="12">
-                  <v-text-field v-model="profileForm.email" label="Email" type="email" required />
+                  <v-text-field
+                    v-model="profileForm.email"
+                    label="Email"
+                    type="email"
+                    :rules="emailRules"
+                    required
+                  />
                 </v-col>
                 <v-col cols="12">
-                  <v-text-field v-model="profileForm.phone" label="Телефон" />
+                  <v-text-field
+                    v-model="profileForm.phone"
+                    label="Телефон"
+                    placeholder="+7 (999) 999-99-99"
+                    :rules="phoneRules"
+                    @input="formatPhone"
+                    @keypress="allowPhoneKeys"
+                  />
                 </v-col>
               </v-row>
               <div class="d-flex justify-end mt-4">
@@ -79,6 +104,48 @@ const { showNotification } = useNotification()
 const activeTab = ref('profile')
 const loading = ref(false)
 const avatarFile = ref(null)
+const profileFormRef = ref(null)
+
+// Validation rules
+const nameRules = [
+  v => !!v || 'Обязательное поле',
+  v => /^[а-яёА-ЯЁa-zA-Z\-]+$/.test(v) || 'Только буквы и дефис',
+]
+
+const emailRules = [
+  v => !!v || 'Обязательное поле',
+  v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || 'Некорректный email',
+]
+
+const phoneRules = [
+  v => !v || /^\+7 \(\d{3}\) \d{3}-\d{2}-\d{2}$/.test(v) || 'Формат: +7 (999) 999-99-99',
+]
+
+// Allow only Cyrillic/Latin letters and hyphen
+function allowLettersOnly(e) {
+  if (!/[а-яёА-ЯЁa-zA-Z\-]/.test(e.key)) e.preventDefault()
+}
+
+// Allow only digits and + for phone
+function allowPhoneKeys(e) {
+  if (!/[\d+]/.test(e.key)) e.preventDefault()
+}
+
+// Auto-format phone as +7 (999) 999-99-99
+function formatPhone(e) {
+  let digits = profileForm.value.phone.replace(/\D/g, '')
+  if (digits.startsWith('8')) digits = '7' + digits.slice(1)
+  if (digits.startsWith('7')) digits = digits.slice(1)
+  digits = digits.slice(0, 10)
+
+  let result = ''
+  if (digits.length > 0) result = '+7 (' + digits.slice(0, 3)
+  if (digits.length >= 3) result += ') ' + digits.slice(3, 6)
+  if (digits.length >= 6) result += '-' + digits.slice(6, 8)
+  if (digits.length >= 8) result += '-' + digits.slice(8, 10)
+
+  profileForm.value.phone = result
+}
 
 const profileForm = ref({
   first_name: '',
@@ -106,6 +173,8 @@ onMounted(() => {
 })
 
 async function handleUpdateProfile() {
+  const { valid } = await profileFormRef.value.validate()
+  if (!valid) return
   loading.value = true
   try {
     const response = await api.patch('/auth/me/', profileForm.value)
