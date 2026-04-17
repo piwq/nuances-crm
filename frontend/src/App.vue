@@ -71,4 +71,20 @@ body, .v-application {
 }
 .page-enter-from { opacity: 0; transform: translateY(6px); }
 .page-leave-to   { opacity: 0; transform: translateY(-4px); }
+
+/* Autofill override — kills browser yellow */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  -webkit-text-fill-color: var(--ink-800) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.v-theme--dark input:-webkit-autofill,
+.v-theme--dark input:-webkit-autofill:hover,
+.v-theme--dark input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #0E1729 inset !important;
+  -webkit-text-fill-color: #E8E6DE !important;
+}
 </style>
