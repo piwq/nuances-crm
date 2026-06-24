@@ -46,6 +46,13 @@ class Command(BaseCommand):
         self.today = timezone.localdate()
         self.now = timezone.now()
 
+        # Отключаем WS-сигнал уведомлений на время сидинга: без запущенного
+        # ASGI/Redis он висит на таймауте, а нужные уведомления команда
+        # создаёт сама в _create_notifications().
+        from django.db.models.signals import post_save
+        from apps.notifications.signals import notify_task_assignee
+        post_save.disconnect(notify_task_assignee, sender=Task)
+
         if options['clear']:
             self._clear()
 
