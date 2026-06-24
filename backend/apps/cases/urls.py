@@ -8,4 +8,6 @@ urlpatterns = [
     path('cases/<uuid:uuid>/assign-lawyer/', views.assign_lawyer_view, name='case-assign-lawyer'),
     path('cases/<uuid:uuid>/remove-lawyer/<int:user_id>/', views.remove_lawyer_view, name='case-remove-lawyer'),
     path('cases/<uuid:uuid>/change-status/', views.change_status_view, name='case-change-status'),
+    path('cases/<int:case_pk>/notes/', views.CaseNoteListCreateView.as_view(), name='case-note-list'),
+    path('cases/<int:case_pk>/notes/<int:pk>/', views.CaseNoteDetailView.as_view(), name='case-note-detail'),
 ]

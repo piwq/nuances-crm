@@ -7,13 +7,14 @@ from django.db.models import Count, Q
 from common.utils import log_activity
 
 from common.permissions import IsAdmin, IsLawyerAssignedToCase
-from .models import Case
-from .serializers import CaseSerializer, CaseListSerializer
+from .models import Case, CaseNote
+from .serializers import CaseSerializer, CaseListSerializer, CaseNoteSerializer
 from .filters import CaseFilter
 
 
 class CaseListCreateView(generics.ListCreateAPIView):
     filterset_class = CaseFilter
+    search_fields = ['title', 'case_number', 'description', 'client__last_name', 'client__company_name']
     ordering_fields = ['created_at', 'title', 'opened_at', 'status']
     ordering = ['-created_at']
 
@@ -21,6 +22,16 @@ class CaseListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'GET':
             return CaseListSerializer
         return CaseSerializer
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_activity(
+            user=self.request.user,
+            action="CREATE",
+            resource_type="Case",
+            resource_uuid=instance.uuid,
+            description=f"Создано дело: {instance.title}"
+        )
 
     def get_queryset(self):
         qs = Case.objects.select_related('client', 'lead_lawyer').prefetch_related('assigned_lawyers', 'tasks')
@@ -139,12 +150,37 @@ def change_status_view(request, uuid):
     if new_status not in dict(Case.STATUS_CHOICES):
         return Response({'detail': 'Недопустимый статус.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    old_status = case.status
     case.status = new_status
     if new_status == Case.STATUS_CLOSED and not case.closed_at:
         from datetime import date
         case.closed_at = date.today()
     case.save(update_fields=['status', 'closed_at'])
+    log_activity(
+        user=request.user,
+        action="STATUS_CHANGE",
+        resource_type="Case",
+        resource_uuid=case.uuid,
+        description=f"Статус изменён: {old_status} → {new_status}"
+    )
     return Response(CaseSerializer(case, context={'request': request}).data)
+
+
+class CaseNoteListCreateView(generics.ListCreateAPIView):
+    serializer_class = CaseNoteSerializer
+
+    def get_queryset(self):
+        return CaseNote.objects.filter(case_id=self.kwargs['case_pk']).select_related('author')
+
+    def perform_create(self, serializer):
+        serializer.save(case_id=self.kwargs['case_pk'])
+
+
+class CaseNoteDetailView(generics.DestroyAPIView):
+    serializer_class = CaseNoteSerializer
+
+    def get_queryset(self):
+        return CaseNote.objects.filter(case_id=self.kwargs['case_pk'])
 
 
 @api_view(['GET'])

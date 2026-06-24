@@ -65,6 +65,20 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         return UserSerializer
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password_view(request):
+    current = request.data.get('current_password', '')
+    new_password = request.data.get('new_password', '')
+    if not request.user.check_password(current):
+        return Response({'detail': 'Неверный текущий пароль.'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(new_password) < 8:
+        return Response({'detail': 'Новый пароль должен содержать минимум 8 символов.'}, status=status.HTTP_400_BAD_REQUEST)
+    request.user.set_password(new_password)
+    request.user.save(update_fields=['password'])
+    return Response({'detail': 'Пароль изменён.'})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def lawyers_list_view(request):

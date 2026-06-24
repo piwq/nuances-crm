@@ -80,11 +80,35 @@
           </v-window-item>
 
           <v-window-item value="security">
-            <v-alert type="info" variant="tonal" class="mb-4">
-              Здесь вы можете изменить свой пароль.
-            </v-alert>
-            <!-- Password change form can be added here if needed -->
-             <p class="text-center text-medium-emphasis py-4">Смена пароля в разработке</p>
+            <v-form ref="passwordFormRef" @submit.prevent="handleChangePassword">
+              <v-text-field
+                v-model="passwordForm.current_password"
+                label="Текущий пароль"
+                type="password"
+                :rules="[required]"
+                autocomplete="current-password"
+                class="mb-2"
+              />
+              <v-text-field
+                v-model="passwordForm.new_password"
+                label="Новый пароль"
+                type="password"
+                :rules="[required, minLength8]"
+                autocomplete="new-password"
+                class="mb-2"
+              />
+              <v-text-field
+                v-model="passwordForm.confirm_password"
+                label="Повторите новый пароль"
+                type="password"
+                :rules="[required, passwordsMatch]"
+                autocomplete="new-password"
+                class="mb-4"
+              />
+              <div class="d-flex justify-end">
+                <v-btn type="submit" color="primary" :loading="passwordLoading">Изменить пароль</v-btn>
+              </div>
+            </v-form>
           </v-window-item>
         </v-window>
       </v-card>
@@ -103,8 +127,16 @@ const { showNotification } = useNotification()
 
 const activeTab = ref('profile')
 const loading = ref(false)
+const passwordLoading = ref(false)
 const avatarFile = ref(null)
 const profileFormRef = ref(null)
+const passwordFormRef = ref(null)
+
+const passwordForm = ref({ current_password: '', new_password: '', confirm_password: '' })
+
+const required = v => !!v || 'Обязательное поле'
+const minLength8 = v => (v && v.length >= 8) || 'Минимум 8 символов'
+const passwordsMatch = v => v === passwordForm.value.new_password || 'Пароли не совпадают'
 
 // Validation rules
 const nameRules = [
@@ -184,6 +216,26 @@ async function handleUpdateProfile() {
     showNotification('Ошибка при обновлении профиля', 'error')
   } finally {
     loading.value = false
+  }
+}
+
+async function handleChangePassword() {
+  const { valid } = await passwordFormRef.value.validate()
+  if (!valid) return
+  passwordLoading.value = true
+  try {
+    await api.post('/auth/change-password/', {
+      current_password: passwordForm.value.current_password,
+      new_password: passwordForm.value.new_password,
+    })
+    showNotification('Пароль успешно изменён', 'success')
+    passwordForm.value = { current_password: '', new_password: '', confirm_password: '' }
+    passwordFormRef.value.reset()
+  } catch (e) {
+    const msg = e.response?.data?.detail || 'Ошибка смены пароля'
+    showNotification(msg, 'error')
+  } finally {
+    passwordLoading.value = false
   }
 }
 

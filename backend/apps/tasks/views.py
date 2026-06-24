@@ -22,6 +22,7 @@ class TaskFilter(django_filters.FilterSet):
 class TaskListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskSerializer
     filterset_class = TaskFilter
+    search_fields = ['title', 'description', 'case__title']
     ordering_fields = ['due_date', 'priority', 'created_at']
     ordering = ['due_date']
 

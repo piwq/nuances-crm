@@ -1,10 +1,13 @@
+import csv
 from datetime import date
+from django.http import HttpResponse
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncMonth
 
 from common.permissions import IsAdmin
 from .models import TimeEntry, Invoice, InvoiceItem
@@ -78,6 +81,12 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
         return InvoiceSerializer
 
     def get_queryset(self):
+        # auto-mark overdue: sent invoices past due_date become overdue
+        Invoice.objects.filter(
+            status=Invoice.STATUS_SENT,
+            due_date__lt=date.today(),
+        ).update(status=Invoice.STATUS_OVERDUE)
+
         qs = Invoice.objects.select_related('case', 'client')
         if self.request.user.is_lawyer:
             from django.db.models import Q
@@ -155,6 +164,138 @@ def mark_paid_view(request, pk):
     invoice.status = Invoice.STATUS_PAID
     invoice.paid_date = request.data.get('paid_date') or date.today()
     invoice.save(update_fields=['status', 'paid_date'])
+    return Response(InvoiceSerializer(invoice, context={'request': request}).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def billing_monthly_stats_view(request):
+    months = int(request.query_params.get('months', 6))
+    qs = TimeEntry.objects.filter(is_billable=True)
+    if request.user.is_lawyer:
+        qs = qs.filter(lawyer=request.user)
+    rows = (
+        qs.annotate(month=TruncMonth('date'))
+        .values('month')
+        .annotate(total_hours=Sum('hours'), total_amount=Sum('amount'))
+        .order_by('month')
+    )
+    return Response([
+        {
+            'month': r['month'].strftime('%Y-%m'),
+            'total_hours': float(r['total_hours'] or 0),
+            'total_amount': float(r['total_amount'] or 0),
+        }
+        for r in rows[-months:]
+    ])
+
+
+class InvoiceItemListCreateView(generics.ListCreateAPIView):
+    serializer_class = InvoiceItemSerializer
+
+    def get_queryset(self):
+        return InvoiceItem.objects.filter(invoice_id=self.request.query_params.get('invoice'))
+
+    def perform_create(self, serializer):
+        item = serializer.save()
+        item.invoice.recalculate_totals()
+
+
+class InvoiceItemDetailView(generics.RetrieveDestroyAPIView):
+    queryset = InvoiceItem.objects.all()
+    serializer_class = InvoiceItemSerializer
+
+    def perform_destroy(self, instance):
+        invoice = instance.invoice
+        instance.delete()
+        invoice.recalculate_totals()
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def time_entries_csv_view(request):
+    qs = TimeEntry.objects.select_related('case', 'lawyer')
+    if request.user.is_lawyer:
+        qs = qs.filter(lawyer=request.user)
+    qs = TimeEntryFilter(request.query_params, queryset=qs).qs.order_by('-date')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="time_entries.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Дата', 'Дело', 'Юрист', 'Часов', 'Описание', 'Биллинговая', 'Ставка (₽/ч)', 'Сумма (₽)', 'Выставлено'])
+    for e in qs:
+        writer.writerow([
+            e.date, str(e.case) if e.case else '', e.lawyer.get_full_name() if e.lawyer else '',
+            e.hours, e.description or '', 'Да' if e.is_billable else 'Нет',
+            e.hourly_rate or '', float(e.amount) if e.is_billable else '', 'Да' if e.invoice_id else 'Нет',
+        ])
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def invoices_csv_view(request):
+    qs = Invoice.objects.select_related('case', 'client')
+    if request.user.is_lawyer:
+        qs = qs.filter(
+            Q(case__assigned_lawyers=request.user) | Q(case__lead_lawyer=request.user)
+        ).distinct()
+    qs = InvoiceFilter(request.query_params, queryset=qs).qs.order_by('-created_at')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="invoices.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['№ счёта', 'Дело', 'Клиент', 'Статус', 'Выставлен', 'Срок оплаты', 'Оплачен', 'Сумма (₽)', 'НДС (₽)', 'Итого (₽)'])
+    for inv in qs:
+        writer.writerow([
+            inv.invoice_number, str(inv.case) if inv.case else '', str(inv.client) if inv.client else '',
+            inv.get_status_display(), inv.issue_date or '', inv.due_date or '', inv.paid_date or '',
+            float(inv.subtotal), float(inv.tax_amount), float(inv.total),
+        ])
+    return response
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_invoice_email_view(request, pk):
+    try:
+        invoice = Invoice.objects.prefetch_related('items').select_related('case', 'client').get(pk=pk)
+    except Invoice.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    recipient_email = request.data.get('email') or (invoice.client.email if invoice.client else '')
+    if not recipient_email:
+        return Response({'detail': 'Не указан email клиента.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    subject = f'Счёт {invoice.invoice_number}'
+    body = (
+        f'Здравствуйте!\n\n'
+        f'Направляем счёт {invoice.invoice_number} на сумму {invoice.total} ₽.\n'
+        f'Срок оплаты: {invoice.due_date}.\n\n'
+        f'С уважением,\nЮридическое бюро «Нюансы»'
+    )
+
+    from django.core.mail import EmailMessage
+    from django.template.loader import render_to_string
+    msg = EmailMessage(subject=subject, body=body, to=[recipient_email])
+
+    try:
+        import weasyprint
+        html = render_to_string('billing/invoice_pdf.html', {'invoice': invoice})
+        pdf = weasyprint.HTML(string=html).write_pdf()
+        msg.attach(f'invoice_{invoice.invoice_number}.pdf', pdf, 'application/pdf')
+    except Exception:
+        pass  # send without attachment if PDF generation fails
+
+    try:
+        msg.send()
+    except Exception as e:
+        return Response({'detail': f'Ошибка отправки письма: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    if invoice.status == Invoice.STATUS_DRAFT:
+        invoice.status = Invoice.STATUS_SENT
+        invoice.save(update_fields=['status'])
+
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
 
 

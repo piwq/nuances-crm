@@ -14,6 +14,7 @@ from .filters import ClientFilter
 class ClientListCreateView(generics.ListCreateAPIView):
     queryset = Client.objects.all()
     filterset_class = ClientFilter
+    search_fields = ['first_name', 'last_name', 'company_name', 'email', 'phone']
     ordering_fields = ['created_at', 'last_name', 'company_name']
     ordering = ['-created_at']
 

@@ -2,10 +2,28 @@
   <div v-if="caseItem">
     <page-header :title="caseItem.title" :subtitle="caseItem.case_number">
       <template #default>
-        <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.id}/edit`" class="mr-2">
-          Редактировать
-        </v-btn>
-        <status-chip :value="caseItem.status" :options="CASE_STATUSES" />
+        <div class="d-flex align-center gap-2 flex-wrap">
+          <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.id}/edit`">
+            Редактировать
+          </v-btn>
+          <v-menu>
+            <template #activator="{ props }">
+              <v-btn v-bind="props" variant="tonal" append-icon="mdi-chevron-down" :loading="statusChanging">
+                <status-chip :value="caseItem.status" :options="CASE_STATUSES" />
+              </v-btn>
+            </template>
+            <v-list density="compact" min-width="180">
+              <v-list-item
+                v-for="s in CASE_STATUSES"
+                :key="s.value"
+                :disabled="s.value === caseItem.status"
+                @click="handleStatusChange(s.value)"
+              >
+                <status-chip :value="s.value" :options="CASE_STATUSES" />
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </div>
       </template>
     </page-header>
 
@@ -14,6 +32,8 @@
       <v-tab value="documents">Документы ({{ documentsStore.documents.length }})</v-tab>
       <v-tab value="tasks">Задачи ({{ openTasksCount }})</v-tab>
       <v-tab value="billing">Биллинг</v-tab>
+      <v-tab value="notes" @click="loadNotes">Заметки ({{ notes.length }})</v-tab>
+      <v-tab value="history" @click="loadHistory">История</v-tab>
     </v-tabs>
 
     <v-window v-model="tab">
@@ -73,15 +93,27 @@
 
       <!-- Documents Tab -->
       <v-window-item value="documents">
-        <v-card>
+        <v-card
+          class="drop-zone"
+          :class="{ 'drop-zone--active': isDragOver }"
+          @dragover.prevent="isDragOver = true"
+          @dragleave="isDragOver = false"
+          @drop.prevent="onFileDrop"
+        >
           <v-card-title class="d-flex justify-space-between align-center">
             Документы
-            <v-btn color="primary" prepend-icon="mdi-upload" variant="tonal" size="small" @click="docDialog = true">Загрузить</v-btn>
+            <div class="d-flex align-center gap-2">
+              <span v-if="uploading" class="text-caption text-medium-emphasis">
+                <v-progress-circular size="14" width="2" indeterminate class="mr-1" />
+                Загрузка...
+              </span>
+              <v-btn color="primary" prepend-icon="mdi-upload" variant="tonal" size="small" @click="docDialog = true">Загрузить</v-btn>
+            </div>
           </v-card-title>
           <v-list v-if="documentsStore.documents.length">
             <v-list-item v-for="doc in documentsStore.documents" :key="doc.id" :title="doc.name" :subtitle="formatDate(doc.created_at)">
               <template #prepend>
-                <v-icon icon="mdi-file-document-outline" class="mr-3" />
+                <v-icon :icon="fileIcon(doc.name)" class="mr-3" />
               </template>
               <template #append>
                 <v-btn icon="mdi-download" variant="text" size="small" @click="documentsStore.downloadDocument(doc.id, doc.name)" />
@@ -89,7 +121,10 @@
               </template>
             </v-list-item>
           </v-list>
-          <v-card-text v-else class="text-center pa-12 text-medium-emphasis">Нет загруженных документов</v-card-text>
+          <v-card-text v-else class="text-center pa-12 text-medium-emphasis">
+            <v-icon size="48" class="mb-2">mdi-cloud-upload-outline</v-icon>
+            <div>Перетащите файлы сюда или нажмите «Загрузить»</div>
+          </v-card-text>
         </v-card>
       </v-window-item>
 
@@ -133,10 +168,9 @@
               <v-card-title>Счета</v-card-title>
               <v-card-text v-if="caseInvoices.length">
                 <v-list density="compact">
-                  <v-list-item v-for="inv in caseInvoices" :key="inv.id" :title="inv.number" :subtitle="formatDate(inv.date)">
+                  <v-list-item v-for="inv in caseInvoices" :key="inv.id" :title="inv.invoice_number" :subtitle="formatDate(inv.issue_date)" :to="`/billing/invoices/${inv.id}`">
                     <template #append>
-                      <v-chip size="x-small" color="success" v-if="inv.status === 'paid'">Оплачен</v-chip>
-                      <v-chip size="x-small" color="primary" v-else>{{ inv.status }}</v-chip>
+                      <status-chip :value="inv.status" :options="INVOICE_STATUSES" />
                     </template>
                   </v-list-item>
                 </v-list>
@@ -149,6 +183,82 @@
             </v-card>
           </v-col>
         </v-row>
+      </v-window-item>
+
+      <!-- Notes Tab -->
+      <v-window-item value="notes">
+        <v-card>
+          <v-card-title>Заметки</v-card-title>
+          <v-divider />
+          <div v-if="notesLoading" class="d-flex justify-center pa-8">
+            <v-progress-circular indeterminate color="primary" />
+          </div>
+          <v-list v-else-if="notes.length" lines="two">
+            <v-list-item v-for="note in notes" :key="note.id">
+              <template #prepend>
+                <v-avatar color="primary" size="36" class="mr-3">
+                  <span class="text-body-2 font-weight-bold">{{ note.author_initials }}</span>
+                </v-avatar>
+              </template>
+              <v-list-item-title class="text-body-2 font-weight-medium">{{ note.author_name }}</v-list-item-title>
+              <v-list-item-subtitle class="text-body-2 mt-1" style="white-space: pre-wrap; -webkit-line-clamp: unset; opacity: 1">{{ note.text }}</v-list-item-subtitle>
+              <div class="text-caption text-medium-emphasis mt-1">{{ formatDateTime(note.created_at) }}</div>
+              <template #append>
+                <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" @click="deleteNote(note.id)" />
+              </template>
+            </v-list-item>
+          </v-list>
+          <v-card-text v-else class="text-center pa-8 text-medium-emphasis">
+            <v-icon size="40" class="mb-2">mdi-note-outline</v-icon>
+            <div>Заметок пока нет</div>
+          </v-card-text>
+          <v-divider />
+          <v-card-text>
+            <v-textarea
+              v-model="newNoteText"
+              label="Новая заметка"
+              rows="2"
+              auto-grow
+              hide-details
+              variant="outlined"
+              density="compact"
+              class="mb-2"
+            />
+            <v-btn color="primary" variant="tonal" size="small" :loading="noteSaving" :disabled="!newNoteText.trim()" @click="addNote">
+              Добавить заметку
+            </v-btn>
+          </v-card-text>
+        </v-card>
+      </v-window-item>
+
+      <!-- History Tab -->
+      <v-window-item value="history">
+        <v-card>
+          <v-card-title>История изменений</v-card-title>
+          <v-divider />
+          <div v-if="historyLoading" class="d-flex justify-center pa-8">
+            <v-progress-circular indeterminate color="primary" />
+          </div>
+          <v-timeline v-else-if="history.length" density="compact" side="end" class="pa-4">
+            <v-timeline-item
+              v-for="entry in history"
+              :key="entry.id"
+              :dot-color="actionColor(entry.action)"
+              size="x-small"
+            >
+              <div class="d-flex justify-space-between align-start">
+                <div>
+                  <div class="text-body-2 font-weight-medium">{{ entry.description }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ entry.user_name }}</div>
+                </div>
+                <div class="text-caption text-medium-emphasis ml-4 flex-shrink-0">{{ formatDateTime(entry.timestamp) }}</div>
+              </div>
+            </v-timeline-item>
+          </v-timeline>
+          <v-card-text v-else class="text-center pa-12 text-medium-emphasis">
+            История изменений пуста
+          </v-card-text>
+        </v-card>
       </v-window-item>
     </v-window>
 
@@ -174,11 +284,12 @@ import { useCasesStore } from '@/stores/cases'
 import { useDocumentsStore } from '@/stores/documents'
 import { useTasksStore } from '@/stores/tasks'
 import { useBillingStore } from '@/stores/billing'
-import { formatDate } from '@/utils/formatters'
-import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES } from '@/utils/constants'
+import { formatDate, formatDateTime } from '@/utils/formatters'
+import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE_STATUSES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useNotification } from '@/composables/useNotification'
+import api from '@/plugins/axios'
 
 const route = useRoute()
 const casesStore = useCasesStore()
@@ -189,15 +300,26 @@ const { success, error } = useNotification()
 
 const caseItem = ref(null)
 const loading = ref(true)
+const statusChanging = ref(false)
 const tab = ref('info')
 const docDialog = ref(false)
 const newFile = ref(null)
+const isDragOver = ref(false)
+const uploading = ref(false)
+const history = ref([])
+const historyLoading = ref(false)
+let historyLoaded = false
+const notes = ref([])
+const notesLoading = ref(false)
+const noteSaving = ref(false)
+const newNoteText = ref('')
+let notesLoaded = false
 
 const categoryLabel = computed(() => CASE_CATEGORIES.find(c => c.value === caseItem.value?.category)?.label || caseItem.value?.category)
 const caseTasks = computed(() => tasksStore.tasks.filter(t => t.case === caseItem.value?.id))
 const openTasksCount = computed(() => caseTasks.value.filter(t => t.status !== 'done' && t.status !== 'cancelled').length)
 const caseInvoices = computed(() => billingStore.invoices.filter(i => i.case === caseItem.value?.id))
-const totalHours = computed(() => billingStore.timeEntries.filter(e => e.case === caseItem.value?.id).reduce((sum, e) => sum + parseFloat(e.duration_hours), 0).toFixed(2))
+const totalHours = computed(() => billingStore.timeEntries.filter(e => e.case === caseItem.value?.id).reduce((sum, e) => sum + parseFloat(e.hours || 0), 0).toFixed(2))
 
 async function fetchData() {
   loading.value = true
@@ -216,20 +338,51 @@ async function fetchData() {
   }
 }
 
+async function uploadFile(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('case', caseItem.value.id)
+  formData.append('name', file.name)
+  await documentsStore.uploadDocument(caseItem.value.id, formData)
+}
+
 async function handleUpload() {
   if (!newFile.value) return
-  const formData = new FormData()
-  formData.append('file', newFile.value[0])
-  formData.append('case', caseItem.value.id)
-  formData.append('name', newFile.value[0].name)
+  uploading.value = true
   try {
-    await documentsStore.uploadDocument(caseItem.value.id, formData)
+    await uploadFile(newFile.value[0])
     success('Документ загружен')
     docDialog.value = false
     newFile.value = null
   } catch (e) {
     error('Ошибка загрузки')
+  } finally {
+    uploading.value = false
   }
+}
+
+async function onFileDrop(event) {
+  isDragOver.value = false
+  const files = Array.from(event.dataTransfer.files)
+  if (!files.length) return
+  uploading.value = true
+  try {
+    await Promise.all(files.map(uploadFile))
+    success(`Загружено файлов: ${files.length}`)
+  } catch (e) {
+    error('Ошибка загрузки')
+  } finally {
+    uploading.value = false
+  }
+}
+
+function fileIcon(name) {
+  const ext = name?.split('.').pop()?.toLowerCase()
+  if (['pdf'].includes(ext)) return 'mdi-file-pdf-box'
+  if (['doc', 'docx'].includes(ext)) return 'mdi-file-word-box'
+  if (['xls', 'xlsx'].includes(ext)) return 'mdi-file-excel-box'
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'mdi-file-image'
+  return 'mdi-file-document-outline'
 }
 
 async function deleteDoc(id) {
@@ -255,9 +408,93 @@ async function toggleTask(task) {
   }
 }
 
+async function handleStatusChange(newStatus) {
+  statusChanging.value = true
+  try {
+    const updated = await casesStore.changeStatus(caseItem.value.uuid, newStatus)
+    caseItem.value = updated
+    success('Статус дела обновлён')
+  } catch {
+    error('Ошибка смены статуса')
+  } finally {
+    statusChanging.value = false
+  }
+}
+
 function taskPriorityColor(p) {
   return TASK_PRIORITIES.find(tp => tp.value === p)?.color || 'grey'
 }
 
+const ACTION_COLORS = {
+  CREATE: 'success', UPDATE: 'primary', DELETE: 'error',
+  STATUS_CHANGE: 'warning', ASSIGN_LAWYER: 'info',
+  UPLOAD: 'teal', DOWNLOAD: 'grey',
+}
+function actionColor(action) { return ACTION_COLORS[action] || 'grey' }
+
+async function loadNotes() {
+  if (notesLoaded || !caseItem.value) return
+  notesLoading.value = true
+  try {
+    const { data } = await api.get(`/api/v1/cases/${caseItem.value.id}/notes/`)
+    notes.value = data.results || data
+    notesLoaded = true
+  } catch {
+    error('Ошибка загрузки заметок')
+  } finally {
+    notesLoading.value = false
+  }
+}
+
+async function addNote() {
+  if (!newNoteText.value.trim() || !caseItem.value) return
+  noteSaving.value = true
+  try {
+    const { data } = await api.post(`/api/v1/cases/${caseItem.value.id}/notes/`, { text: newNoteText.value.trim() })
+    notes.value.unshift(data)
+    newNoteText.value = ''
+    success('Заметка добавлена')
+  } catch {
+    error('Ошибка добавления заметки')
+  } finally {
+    noteSaving.value = false
+  }
+}
+
+async function deleteNote(id) {
+  if (!confirm('Удалить заметку?') || !caseItem.value) return
+  try {
+    await api.delete(`/api/v1/cases/${caseItem.value.id}/notes/${id}/`)
+    notes.value = notes.value.filter(n => n.id !== id)
+    success('Заметка удалена')
+  } catch {
+    error('Ошибка удаления заметки')
+  }
+}
+
+async function loadHistory() {
+  if (historyLoaded || !caseItem.value) return
+  historyLoading.value = true
+  try {
+    const { data } = await api.get(`/api/v1/cases/${caseItem.value.uuid}/history/`)
+    history.value = data.results || data
+    historyLoaded = true
+  } catch {
+    // silent fail - history is non-critical
+  } finally {
+    historyLoading.value = false
+  }
+}
+
 onMounted(fetchData)
 </script>
+
+<style scoped>
+.drop-zone {
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone--active {
+  border: 2px dashed rgb(var(--v-theme-primary)) !important;
+  background: rgba(var(--v-theme-primary), 0.04) !important;
+}
+</style>

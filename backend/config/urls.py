@@ -12,6 +12,8 @@ urlpatterns = [
     path('api/v1/', include('apps.tasks.urls')),
     path('api/v1/', include('apps.billing.urls')),
     path('api/v1/chat/', include('apps.chat.urls')),
+    path('api/v1/', include('apps.audit.urls')),
+    path('api/v1/', include('apps.notifications.urls')),
 ]
 
 if settings.DEBUG:

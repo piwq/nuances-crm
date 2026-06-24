@@ -25,6 +25,9 @@
       </div>
 
       <v-list density="compact" nav class="px-2">
+        <global-search v-if="!rail" />
+        <time-tracker v-if="!rail" />
+        <notification-bell v-if="!rail" />
         <v-list-item
           v-for="item in navItems"
           :key="item.to"
@@ -128,6 +131,9 @@ import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import logoLight from '@/assets/logo.svg'
 import logoDark from '@/assets/logo-dark.svg'
+import GlobalSearch from '@/components/common/GlobalSearch.vue'
+import TimeTracker from '@/components/common/TimeTracker.vue'
+import NotificationBell from '@/components/common/NotificationBell.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -165,6 +171,7 @@ const navItems = [
   { title: 'Чат', icon: 'mdi-forum', to: '/chat' },
   { title: 'Учёт времени', icon: 'mdi-timer', to: '/billing/time' },
   { title: 'Счета', icon: 'mdi-receipt', to: '/billing/invoices' },
+  { title: 'Отчёты', icon: 'mdi-chart-bar', to: '/reports' },
 ]
 
 async function handleLogout() {
