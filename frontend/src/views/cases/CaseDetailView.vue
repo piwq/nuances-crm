@@ -134,10 +134,9 @@
               <v-card-title>Счета</v-card-title>
               <v-card-text v-if="caseInvoices.length">
                 <v-list density="compact">
-                  <v-list-item v-for="inv in caseInvoices" :key="inv.id" :title="inv.number" :subtitle="formatDate(inv.date)">
+                  <v-list-item v-for="inv in caseInvoices" :key="inv.id" :title="inv.invoice_number" :subtitle="formatDate(inv.issue_date)" :to="`/billing/invoices/${inv.id}`">
                     <template #append>
-                      <v-chip size="x-small" color="success" v-if="inv.status === 'paid'">Оплачен</v-chip>
-                      <v-chip size="x-small" color="primary" v-else>{{ inv.status }}</v-chip>
+                      <status-chip :value="inv.status" :options="INVOICE_STATUSES" />
                     </template>
                   </v-list-item>
                 </v-list>
@@ -206,7 +205,7 @@ import { useDocumentsStore } from '@/stores/documents'
 import { useTasksStore } from '@/stores/tasks'
 import { useBillingStore } from '@/stores/billing'
 import { formatDate, formatDateTime } from '@/utils/formatters'
-import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES } from '@/utils/constants'
+import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE_STATUSES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useNotification } from '@/composables/useNotification'
@@ -232,7 +231,7 @@ const categoryLabel = computed(() => CASE_CATEGORIES.find(c => c.value === caseI
 const caseTasks = computed(() => tasksStore.tasks.filter(t => t.case === caseItem.value?.id))
 const openTasksCount = computed(() => caseTasks.value.filter(t => t.status !== 'done' && t.status !== 'cancelled').length)
 const caseInvoices = computed(() => billingStore.invoices.filter(i => i.case === caseItem.value?.id))
-const totalHours = computed(() => billingStore.timeEntries.filter(e => e.case === caseItem.value?.id).reduce((sum, e) => sum + parseFloat(e.duration_hours), 0).toFixed(2))
+const totalHours = computed(() => billingStore.timeEntries.filter(e => e.case === caseItem.value?.id).reduce((sum, e) => sum + parseFloat(e.hours || 0), 0).toFixed(2))
 
 async function fetchData() {
   loading.value = true
