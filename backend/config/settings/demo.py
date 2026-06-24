@@ -15,3 +15,9 @@ CSRF_COOKIE_SECURE = False
 
 # Локальный доступ по любому хосту (localhost / 127.0.0.1 / IP в сети)
 ALLOWED_HOSTS = ['*']
+
+# Доступ из локальной сети с других машин: разрешаем CORS отовсюду и
+# доверяем CSRF для http/https (нужно для входа в админку по IP).
+# Для self-hosted демо в доверенной сети это безопасно.
+CORS_ALLOW_ALL_ORIGINS = True
+CSRF_TRUSTED_ORIGINS = ['http://*', 'https://*']
