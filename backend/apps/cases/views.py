@@ -14,6 +14,7 @@ from .filters import CaseFilter
 
 class CaseListCreateView(generics.ListCreateAPIView):
     filterset_class = CaseFilter
+    search_fields = ['title', 'case_number', 'description', 'client__last_name', 'client__company_name']
     ordering_fields = ['created_at', 'title', 'opened_at', 'status']
     ordering = ['-created_at']
 
