@@ -36,10 +36,12 @@ const routes = [
       { path: 'billing/time', name: 'TimeEntries', component: () => import('@/views/billing/TimeEntriesView.vue') },
       { path: 'billing/invoices', name: 'InvoicesList', component: () => import('@/views/billing/InvoicesListView.vue') },
       { path: 'billing/invoices/:id', name: 'InvoiceDetail', component: () => import('@/views/billing/InvoiceDetailView.vue') },
+      { path: 'reports', name: 'Reports', component: () => import('@/views/reports/ReportsView.vue') },
 
-      // Profile & Chat
+      // Profile & Chat & Admin
       { path: 'profile', name: 'Profile', component: () => import('@/views/auth/ProfileView.vue') },
       { path: 'chat', name: 'Chat', component: () => import('@/views/chat/ChatView.vue') },
+      { path: 'admin/users', name: 'UsersList', component: () => import('@/views/admin/UsersListView.vue'), meta: { roles: ['admin'] } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

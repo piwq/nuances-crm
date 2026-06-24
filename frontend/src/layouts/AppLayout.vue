@@ -169,6 +169,7 @@ const navItems = [
   { title: 'Чат', icon: 'mdi-forum', to: '/chat' },
   { title: 'Учёт времени', icon: 'mdi-timer', to: '/billing/time' },
   { title: 'Счета', icon: 'mdi-receipt', to: '/billing/invoices' },
+  { title: 'Отчёты', icon: 'mdi-chart-bar', to: '/reports' },
 ]
 
 async function handleLogout() {
