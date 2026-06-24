@@ -12,7 +12,19 @@ def create_notification(user, title, body='', link='', key=''):
 
     notif = Notification.objects.create(user=user, title=title, body=body, link=link, key=key)
     _push_ws(notif)
+    _push_telegram(notif)
     return notif
+
+
+def _push_telegram(notification):
+    chat_id = getattr(notification.user, 'telegram_chat_id', '')
+    if not chat_id:
+        return
+    from .telegram import send_telegram_message
+    text = f'<b>{notification.title}</b>'
+    if notification.body:
+        text += f'\n{notification.body}'
+    send_telegram_message(chat_id, text)
 
 
 def _push_ws(notification):

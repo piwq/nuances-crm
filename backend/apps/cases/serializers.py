@@ -21,6 +21,7 @@ class CaseSerializer(serializers.ModelSerializer):
             'assigned_lawyers', 'assigned_lawyers_detail',
             'lead_lawyer', 'lead_lawyer_detail',
             'opened_at', 'closed_at', 'expected_close_date',
+            'key_deadline', 'key_deadline_note',
             'hourly_rate',
             'created_at', 'updated_at',
             'documents_count', 'tasks_count', 'time_entries_count',
@@ -62,7 +63,7 @@ class CaseListSerializer(serializers.ModelSerializer):
             'id', 'uuid', 'title', 'case_number', 'client', 'client_name',
             'status', 'category',
             'lead_lawyer', 'lead_lawyer_name',
-            'opened_at', 'expected_close_date',
+            'opened_at', 'expected_close_date', 'key_deadline',
             'open_tasks_count',
         ]
 

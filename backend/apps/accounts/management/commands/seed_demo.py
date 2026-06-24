@@ -23,7 +23,7 @@ from apps.billing.models import Invoice, InvoiceItem, TimeEntry
 from apps.cases.models import Case, CaseNote
 from apps.chat.models import ChatMessage
 from apps.clients.models import Client, ContactPerson
-from apps.documents.models import Document
+from apps.documents.models import Document, DocumentTemplate
 from apps.notifications.models import Notification
 from apps.tasks.models import Event, Task
 
@@ -70,6 +70,7 @@ class Command(BaseCommand):
         cases = self._create_cases(users, clients)
         self._create_case_notes(cases, users)
         self._create_documents(cases, users)
+        self._create_document_templates()
         self._create_tasks(cases, users)
         self._create_events(cases, users)
         entries = self._create_time_entries(cases, users)
@@ -100,6 +101,7 @@ class Command(BaseCommand):
         Invoice.objects.all().delete()
         TimeEntry.objects.all().delete()
         Document.objects.all().delete()
+        DocumentTemplate.objects.all().delete()
         CaseNote.objects.all().delete()
         Task.objects.all().delete()
         Event.objects.all().delete()
@@ -215,6 +217,15 @@ class Command(BaseCommand):
             if status in (Case.STATUS_CLOSED, Case.STATUS_ARCHIVED):
                 case.closed_at = opened + timedelta(days=random.randint(30, 120))
                 case.save(update_fields=['closed_at'])
+            elif i % 2 == 0:
+                # часть активных дел — с процессуальным сроком (в т.ч. близким/просроченным)
+                case.key_deadline = self.today + timedelta(days=random.choice([-2, 3, 5, 10, 25]))
+                case.key_deadline_note = random.choice([
+                    'Срок исковой давности',
+                    'Подача апелляционной жалобы',
+                    'Срок представления возражений',
+                ])
+                case.save(update_fields=['key_deadline', 'key_deadline_note'])
             cases.append(case)
         return cases
 
@@ -258,6 +269,62 @@ class Command(BaseCommand):
                     file=content, uploaded_by=random.choice(lawyers),
                     description='Демо-документ для показа.',
                 )
+
+    # ------------------------------------------------------------------ templates
+    def _create_document_templates(self):
+        self.stdout.write('Создание шаблонов документов...')
+        try:
+            from io import BytesIO
+            from docx import Document as DocxDocument
+        except ImportError:
+            self.stdout.write('  python-docx не установлен — пропускаю шаблоны.')
+            return
+
+        from django.core.files.base import ContentFile
+
+        specs = [
+            (
+                'Договор оказания юридических услуг', Document.TYPE_CONTRACT,
+                [
+                    'ДОГОВОР ОКАЗАНИЯ ЮРИДИЧЕСКИХ УСЛУГ',
+                    'Дата: {{ today }}',
+                    'По делу № {{ case_number }} — {{ case_title }}',
+                    'Категория: {{ case_category }}',
+                    '',
+                    'Клиент: {{ client_name }}',
+                    'ИНН: {{ client_inn }}',
+                    'Адрес: {{ client_address }}',
+                    'Email: {{ client_email }}, тел.: {{ client_phone }}',
+                    '',
+                    'Ответственный юрист: {{ lead_lawyer }}',
+                ],
+            ),
+            (
+                'Доверенность на представление интересов', Document.TYPE_POA,
+                [
+                    'ДОВЕРЕННОСТЬ',
+                    'Дата выдачи: {{ today }}',
+                    '',
+                    'Доверитель: {{ client_name }} (ИНН {{ client_inn }}), адрес: {{ client_address }}',
+                    'уполномочивает представлять интересы по делу № {{ case_number }}',
+                    'в суде: {{ court_name }} (дело № {{ court_case_number }}).',
+                    '',
+                    'Представитель: {{ lead_lawyer }}',
+                ],
+            ),
+        ]
+        for name, dtype, lines in specs:
+            docx = DocxDocument()
+            for line in lines:
+                docx.add_paragraph(line)
+            buf = BytesIO()
+            docx.save(buf)
+            buf.seek(0)
+            DocumentTemplate.objects.create(
+                name=name, document_type=dtype,
+                description='Демо-шаблон. Плейсхолдеры {{ ... }} подставляются из данных дела.',
+                file=ContentFile(buf.read(), name=f'{name}.docx'),
+            )
 
     # ------------------------------------------------------------------ tasks
     def _create_tasks(self, cases, users):

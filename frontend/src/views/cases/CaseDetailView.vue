@@ -27,6 +27,17 @@
       </template>
     </page-header>
 
+    <v-alert
+      v-if="deadlineInfo"
+      :type="deadlineInfo.type"
+      variant="tonal"
+      density="comfortable"
+      :icon="deadlineInfo.icon"
+      class="mb-4"
+    >
+      <strong>{{ deadlineInfo.label }}:</strong> {{ formatDate(caseItem.key_deadline) }}<span v-if="caseItem.key_deadline_note"> — {{ caseItem.key_deadline_note }}</span>
+    </v-alert>
+
     <v-tabs v-model="tab" color="primary" class="mb-4 border-b">
       <v-tab value="info">Инфо</v-tab>
       <v-tab value="documents">Документы ({{ documentsStore.documents.length }})</v-tab>
@@ -107,6 +118,7 @@
                 <v-progress-circular size="14" width="2" indeterminate class="mr-1" />
                 Загрузка...
               </span>
+              <v-btn color="secondary" prepend-icon="mdi-file-document-plus-outline" variant="tonal" size="small" @click="openTemplateDialog">Из шаблона</v-btn>
               <v-btn color="primary" prepend-icon="mdi-upload" variant="tonal" size="small" @click="docDialog = true">Загрузить</v-btn>
             </div>
           </v-card-title>
@@ -262,6 +274,32 @@
       </v-window-item>
     </v-window>
 
+    <!-- Generate from Template Dialog -->
+    <v-dialog v-model="templateDialog" max-width="500">
+      <v-card>
+        <v-card-title>Создать документ из шаблона</v-card-title>
+        <v-card-text>
+          <v-select
+            v-model="selectedTemplate"
+            :items="templates"
+            item-title="name"
+            item-value="id"
+            label="Шаблон"
+            :loading="templatesLoading"
+            :no-data-text="templatesLoading ? 'Загрузка...' : 'Нет шаблонов — загрузите их в админке'"
+          />
+          <div class="text-caption text-medium-emphasis mt-1">
+            Данные дела и клиента подставятся автоматически.
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="templateDialog = false">Отмена</v-btn>
+          <v-btn color="primary" :loading="generating" :disabled="!selectedTemplate" @click="handleGenerate">Создать</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Upload Dialog -->
     <v-dialog v-model="docDialog" max-width="500">
       <v-card>
@@ -306,6 +344,11 @@ const docDialog = ref(false)
 const newFile = ref(null)
 const isDragOver = ref(false)
 const uploading = ref(false)
+const templateDialog = ref(false)
+const templates = ref([])
+const templatesLoading = ref(false)
+const selectedTemplate = ref(null)
+const generating = ref(false)
 const history = ref([])
 const historyLoading = ref(false)
 let historyLoaded = false
@@ -316,6 +359,18 @@ const newNoteText = ref('')
 let notesLoaded = false
 
 const categoryLabel = computed(() => CASE_CATEGORIES.find(c => c.value === caseItem.value?.category)?.label || caseItem.value?.category)
+
+const deadlineInfo = computed(() => {
+  const d = caseItem.value?.key_deadline
+  if (!d) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const dl = new Date(d); dl.setHours(0, 0, 0, 0)
+  const days = Math.round((dl - today) / 86400000)
+  if (days < 0) return { type: 'error', icon: 'mdi-alert-octagon', label: `Процессуальный срок просрочен на ${-days} дн.` }
+  if (days === 0) return { type: 'error', icon: 'mdi-alert', label: 'Процессуальный срок — сегодня' }
+  if (days <= 7) return { type: 'warning', icon: 'mdi-alert', label: `Процессуальный срок через ${days} дн.` }
+  return { type: 'info', icon: 'mdi-gavel', label: 'Ключевой процессуальный срок' }
+})
 const caseTasks = computed(() => tasksStore.tasks.filter(t => t.case === caseItem.value?.id))
 const openTasksCount = computed(() => caseTasks.value.filter(t => t.status !== 'done' && t.status !== 'cancelled').length)
 const caseInvoices = computed(() => billingStore.invoices.filter(i => i.case === caseItem.value?.id))
@@ -358,6 +413,39 @@ async function handleUpload() {
     error('Ошибка загрузки')
   } finally {
     uploading.value = false
+  }
+}
+
+async function openTemplateDialog() {
+  templateDialog.value = true
+  if (templates.value.length) return
+  templatesLoading.value = true
+  try {
+    const { data } = await api.get('/api/v1/document-templates/')
+    templates.value = data.results || data
+  } catch {
+    error('Ошибка загрузки шаблонов')
+  } finally {
+    templatesLoading.value = false
+  }
+}
+
+async function handleGenerate() {
+  if (!selectedTemplate.value) return
+  generating.value = true
+  try {
+    await api.post('/api/v1/documents/generate/', {
+      template: selectedTemplate.value,
+      case: caseItem.value.id,
+    })
+    await documentsStore.fetchDocuments(caseItem.value.id)
+    success('Документ создан из шаблона')
+    templateDialog.value = false
+    selectedTemplate.value = null
+  } catch (e) {
+    error(e.response?.data?.detail || 'Ошибка генерации документа')
+  } finally {
+    generating.value = false
   }
 }
 

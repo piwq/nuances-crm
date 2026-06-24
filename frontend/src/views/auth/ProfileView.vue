@@ -72,6 +72,16 @@
                     @keypress="allowPhoneKeys"
                   />
                 </v-col>
+                <v-col cols="12">
+                  <v-text-field
+                    v-model="profileForm.telegram_chat_id"
+                    label="Telegram chat ID"
+                    placeholder="например, 123456789"
+                    prepend-inner-icon="mdi-send"
+                    hint="Уведомления о дедлайнах и задачах в Telegram. Узнать ID: напишите боту @userinfobot"
+                    persistent-hint
+                  />
+                </v-col>
               </v-row>
               <div class="d-flex justify-end mt-4">
                 <v-btn type="submit" color="primary" :loading="loading">Сохранить</v-btn>
@@ -183,7 +193,8 @@ const profileForm = ref({
   first_name: '',
   last_name: '',
   email: '',
-  phone: ''
+  phone: '',
+  telegram_chat_id: ''
 })
 
 const userInitials = computed(() => {
@@ -199,7 +210,8 @@ onMounted(() => {
       first_name: auth.user.first_name || '',
       last_name: auth.user.last_name || '',
       email: auth.user.email || '',
-      phone: auth.user.phone || ''
+      phone: auth.user.phone || '',
+      telegram_chat_id: auth.user.telegram_chat_id || ''
     }
   }
 })
@@ -209,7 +221,7 @@ async function handleUpdateProfile() {
   if (!valid) return
   loading.value = true
   try {
-    const response = await api.patch('/auth/me/', profileForm.value)
+    const response = await api.patch('/api/v1/auth/me/', profileForm.value)
     auth.user = response.data
     showNotification('Профиль успешно обновлен', 'success')
   } catch (error) {
@@ -224,7 +236,7 @@ async function handleChangePassword() {
   if (!valid) return
   passwordLoading.value = true
   try {
-    await api.post('/auth/change-password/', {
+    await api.post('/api/v1/auth/change-password/', {
       current_password: passwordForm.value.current_password,
       new_password: passwordForm.value.new_password,
     })
@@ -248,7 +260,7 @@ async function handleAvatarUpload() {
 
   loading.value = true
   try {
-    const response = await api.patch('/auth/me/', formData, {
+    const response = await api.patch('/api/v1/auth/me/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }

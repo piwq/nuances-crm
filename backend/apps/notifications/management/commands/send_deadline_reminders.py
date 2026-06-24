@@ -9,11 +9,13 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 
 from apps.tasks.models import Task, Event
+from apps.cases.models import Case
 from apps.notifications.utils import create_notification
 
 
 TASK_THRESHOLDS = [1, 3]   # days before due_date
 EVENT_THRESHOLDS = [1]
+CASE_DEADLINE_THRESHOLDS = [1, 3, 7]   # процессуальные сроки — предупреждаем раньше
 
 
 class Command(BaseCommand):
@@ -72,6 +74,31 @@ class Command(BaseCommand):
                         title=f'📅 Завтра: {event.title}',
                         body=f'{event.get_event_type_display()} в {event.start_datetime.strftime("%H:%M")}',
                         link=link,
+                        key=key,
+                    )
+                    if n:
+                        created += 1
+
+        # ── Процессуальные сроки по делам ──────────────────────────────────
+        open_cases = Case.objects.filter(
+            key_deadline__isnull=False,
+            status__in=[Case.STATUS_NEW, Case.STATUS_ACTIVE, Case.STATUS_ON_HOLD],
+        ).select_related('lead_lawyer').prefetch_related('assigned_lawyers')
+
+        for days in CASE_DEADLINE_THRESHOLDS:
+            target = today + timedelta(days=days)
+            for case in open_cases.filter(key_deadline=target):
+                recipients = set(case.assigned_lawyers.all())
+                if case.lead_lawyer:
+                    recipients.add(case.lead_lawyer)
+                note = f' · {case.key_deadline_note}' if case.key_deadline_note else ''
+                for user in recipients:
+                    key = f'case_{case.id}_deadline_{days}d_user_{user.id}'
+                    n = create_notification(
+                        user=user,
+                        title=f'⚖️ Срок через {days}д по делу: {case.title}',
+                        body=f'Процессуальный срок {case.key_deadline}{note}',
+                        link=f'/cases/{case.uuid}',
                         key=key,
                     )
                     if n:

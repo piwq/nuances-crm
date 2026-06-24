@@ -96,6 +96,24 @@
             </v-col>
           </v-row>
 
+          <v-row dense>
+            <v-col cols="12" md="4">
+              <v-text-field
+                v-model="form.key_deadline"
+                label="Ключевой процессуальный срок"
+                type="date"
+                prepend-inner-icon="mdi-gavel"
+              />
+            </v-col>
+            <v-col cols="12" md="8">
+              <v-text-field
+                v-model="form.key_deadline_note"
+                label="Описание срока"
+                placeholder="Напр.: срок исковой давности, подача апелляции"
+              />
+            </v-col>
+          </v-row>
+
           <v-textarea v-model="form.description" label="Описание / Детали дела" rows="4" />
 
           <v-divider class="my-4" />
@@ -149,6 +167,8 @@ const form = ref({
   court_case_number: '',
   opened_at: new Date().toISOString().substr(0, 10),
   expected_close_date: null,
+  key_deadline: null,
+  key_deadline_note: '',
   description: '',
   hourly_rate: null,
 })

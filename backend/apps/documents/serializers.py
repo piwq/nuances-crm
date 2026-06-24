@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document
+from .models import Document, DocumentTemplate
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -31,3 +31,12 @@ class DocumentSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['uploaded_by'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class DocumentTemplateSerializer(serializers.ModelSerializer):
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+
+    class Meta:
+        model = DocumentTemplate
+        fields = ['id', 'name', 'document_type', 'document_type_display', 'file', 'description', 'created_at']
+        read_only_fields = ['created_at']

@@ -60,3 +60,23 @@ class Document(models.Model):
             self.file_size = self.file.size
             self.mime_type = mimetypes.guess_type(self.file.name)[0] or ''
         super().save(*args, **kwargs)
+
+
+class DocumentTemplate(models.Model):
+    """Шаблон .docx с плейсхолдерами {{ ... }} для генерации документов по делу."""
+    name = models.CharField(max_length=255, verbose_name='Название шаблона')
+    document_type = models.CharField(
+        max_length=30, choices=Document.TYPE_CHOICES,
+        default=Document.TYPE_OTHER, verbose_name='Тип документа',
+    )
+    file = models.FileField(upload_to='document_templates/', verbose_name='Файл шаблона (.docx)')
+    description = models.TextField(blank=True, verbose_name='Описание')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Шаблон документа'
+        verbose_name_plural = 'Шаблоны документов'
+
+    def __str__(self):
+        return self.name

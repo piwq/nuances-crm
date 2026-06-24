@@ -71,6 +71,13 @@ class Case(models.Model):
     opened_at = models.DateField(default=date.today, verbose_name='Дата открытия')
     closed_at = models.DateField(null=True, blank=True, verbose_name='Дата закрытия')
     expected_close_date = models.DateField(null=True, blank=True, verbose_name='Планируемая дата закрытия')
+    key_deadline = models.DateField(
+        null=True, blank=True, verbose_name='Ключевой процессуальный срок',
+    )
+    key_deadline_note = models.CharField(
+        max_length=255, blank=True, verbose_name='Описание срока',
+        help_text='Напр.: срок исковой давности, подача апелляции',
+    )
 
     hourly_rate = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
