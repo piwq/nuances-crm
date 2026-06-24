@@ -26,6 +26,7 @@
 
       <v-list density="compact" nav class="px-2">
         <global-search v-if="!rail" />
+        <time-tracker v-if="!rail" />
         <v-list-item
           v-for="item in navItems"
           :key="item.to"
@@ -130,6 +131,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import logoLight from '@/assets/logo.svg'
 import logoDark from '@/assets/logo-dark.svg'
 import GlobalSearch from '@/components/common/GlobalSearch.vue'
+import TimeTracker from '@/components/common/TimeTracker.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
