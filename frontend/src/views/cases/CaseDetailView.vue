@@ -2,10 +2,28 @@
   <div v-if="caseItem">
     <page-header :title="caseItem.title" :subtitle="caseItem.case_number">
       <template #default>
-        <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.id}/edit`" class="mr-2">
-          Редактировать
-        </v-btn>
-        <status-chip :value="caseItem.status" :options="CASE_STATUSES" />
+        <div class="d-flex align-center gap-2 flex-wrap">
+          <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.id}/edit`">
+            Редактировать
+          </v-btn>
+          <v-menu>
+            <template #activator="{ props }">
+              <v-btn v-bind="props" variant="tonal" append-icon="mdi-chevron-down" :loading="statusChanging">
+                <status-chip :value="caseItem.status" :options="CASE_STATUSES" />
+              </v-btn>
+            </template>
+            <v-list density="compact" min-width="180">
+              <v-list-item
+                v-for="s in CASE_STATUSES"
+                :key="s.value"
+                :disabled="s.value === caseItem.status"
+                @click="handleStatusChange(s.value)"
+              >
+                <status-chip :value="s.value" :options="CASE_STATUSES" />
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </div>
       </template>
     </page-header>
 
@@ -220,6 +238,7 @@ const { success, error } = useNotification()
 
 const caseItem = ref(null)
 const loading = ref(true)
+const statusChanging = ref(false)
 const tab = ref('info')
 const docDialog = ref(false)
 const newFile = ref(null)
@@ -286,6 +305,19 @@ async function toggleTask(task) {
     success('Статус задачи обновлен')
   } catch (e) {
     error('Ошибка обновления задачи')
+  }
+}
+
+async function handleStatusChange(newStatus) {
+  statusChanging.value = true
+  try {
+    const updated = await casesStore.changeStatus(caseItem.value.uuid, newStatus)
+    caseItem.value = updated
+    success('Статус дела обновлён')
+  } catch {
+    error('Ошибка смены статуса')
+  } finally {
+    statusChanging.value = false
   }
 }
 
