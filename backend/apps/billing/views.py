@@ -158,6 +158,27 @@ def mark_paid_view(request, pk):
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
 
 
+class InvoiceItemListCreateView(generics.ListCreateAPIView):
+    serializer_class = InvoiceItemSerializer
+
+    def get_queryset(self):
+        return InvoiceItem.objects.filter(invoice_id=self.request.query_params.get('invoice'))
+
+    def perform_create(self, serializer):
+        item = serializer.save()
+        item.invoice.recalculate_totals()
+
+
+class InvoiceItemDetailView(generics.RetrieveDestroyAPIView):
+    queryset = InvoiceItem.objects.all()
+    serializer_class = InvoiceItemSerializer
+
+    def perform_destroy(self, instance):
+        invoice = instance.invoice
+        instance.delete()
+        invoice.recalculate_totals()
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def invoice_pdf_view(request, pk):
