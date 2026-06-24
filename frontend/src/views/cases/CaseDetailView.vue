@@ -92,15 +92,27 @@
 
       <!-- Documents Tab -->
       <v-window-item value="documents">
-        <v-card>
+        <v-card
+          class="drop-zone"
+          :class="{ 'drop-zone--active': isDragOver }"
+          @dragover.prevent="isDragOver = true"
+          @dragleave="isDragOver = false"
+          @drop.prevent="onFileDrop"
+        >
           <v-card-title class="d-flex justify-space-between align-center">
             Документы
-            <v-btn color="primary" prepend-icon="mdi-upload" variant="tonal" size="small" @click="docDialog = true">Загрузить</v-btn>
+            <div class="d-flex align-center gap-2">
+              <span v-if="uploading" class="text-caption text-medium-emphasis">
+                <v-progress-circular size="14" width="2" indeterminate class="mr-1" />
+                Загрузка...
+              </span>
+              <v-btn color="primary" prepend-icon="mdi-upload" variant="tonal" size="small" @click="docDialog = true">Загрузить</v-btn>
+            </div>
           </v-card-title>
           <v-list v-if="documentsStore.documents.length">
             <v-list-item v-for="doc in documentsStore.documents" :key="doc.id" :title="doc.name" :subtitle="formatDate(doc.created_at)">
               <template #prepend>
-                <v-icon icon="mdi-file-document-outline" class="mr-3" />
+                <v-icon :icon="fileIcon(doc.name)" class="mr-3" />
               </template>
               <template #append>
                 <v-btn icon="mdi-download" variant="text" size="small" @click="documentsStore.downloadDocument(doc.id, doc.name)" />
@@ -108,7 +120,10 @@
               </template>
             </v-list-item>
           </v-list>
-          <v-card-text v-else class="text-center pa-12 text-medium-emphasis">Нет загруженных документов</v-card-text>
+          <v-card-text v-else class="text-center pa-12 text-medium-emphasis">
+            <v-icon size="48" class="mb-2">mdi-cloud-upload-outline</v-icon>
+            <div>Перетащите файлы сюда или нажмите «Загрузить»</div>
+          </v-card-text>
         </v-card>
       </v-window-item>
 
@@ -242,6 +257,8 @@ const statusChanging = ref(false)
 const tab = ref('info')
 const docDialog = ref(false)
 const newFile = ref(null)
+const isDragOver = ref(false)
+const uploading = ref(false)
 const history = ref([])
 const historyLoading = ref(false)
 let historyLoaded = false
@@ -269,20 +286,51 @@ async function fetchData() {
   }
 }
 
+async function uploadFile(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('case', caseItem.value.id)
+  formData.append('name', file.name)
+  await documentsStore.uploadDocument(caseItem.value.id, formData)
+}
+
 async function handleUpload() {
   if (!newFile.value) return
-  const formData = new FormData()
-  formData.append('file', newFile.value[0])
-  formData.append('case', caseItem.value.id)
-  formData.append('name', newFile.value[0].name)
+  uploading.value = true
   try {
-    await documentsStore.uploadDocument(caseItem.value.id, formData)
+    await uploadFile(newFile.value[0])
     success('Документ загружен')
     docDialog.value = false
     newFile.value = null
   } catch (e) {
     error('Ошибка загрузки')
+  } finally {
+    uploading.value = false
   }
+}
+
+async function onFileDrop(event) {
+  isDragOver.value = false
+  const files = Array.from(event.dataTransfer.files)
+  if (!files.length) return
+  uploading.value = true
+  try {
+    await Promise.all(files.map(uploadFile))
+    success(`Загружено файлов: ${files.length}`)
+  } catch (e) {
+    error('Ошибка загрузки')
+  } finally {
+    uploading.value = false
+  }
+}
+
+function fileIcon(name) {
+  const ext = name?.split('.').pop()?.toLowerCase()
+  if (['pdf'].includes(ext)) return 'mdi-file-pdf-box'
+  if (['doc', 'docx'].includes(ext)) return 'mdi-file-word-box'
+  if (['xls', 'xlsx'].includes(ext)) return 'mdi-file-excel-box'
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'mdi-file-image'
+  return 'mdi-file-document-outline'
 }
 
 async function deleteDoc(id) {
@@ -348,3 +396,13 @@ async function loadHistory() {
 
 onMounted(fetchData)
 </script>
+
+<style scoped>
+.drop-zone {
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone--active {
+  border: 2px dashed rgb(var(--v-theme-primary)) !important;
+  background: rgba(var(--v-theme-primary), 0.04) !important;
+}
+</style>

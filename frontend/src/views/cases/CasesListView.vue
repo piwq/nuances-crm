@@ -1,6 +1,7 @@
 <template>
   <div>
     <page-header title="Дела" :subtitle="`Всего: ${store.pagination.total}`">
+      <v-btn variant="tonal" prepend-icon="mdi-view-column" to="/cases/kanban" class="mr-2">Канбан</v-btn>
       <v-btn color="primary" prepend-icon="mdi-plus" to="/cases/new">Новое дело</v-btn>
     </page-header>
 
@@ -56,7 +57,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useCasesStore } from '@/stores/cases'
 import { formatDate } from '@/utils/formatters'
 import { CASE_STATUSES, CASE_CATEGORIES } from '@/utils/constants'
@@ -64,8 +66,14 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 
 const store = useCasesStore()
-const search = ref('')
-const filters = ref({ status: '', category: '' })
+const route = useRoute()
+const router = useRouter()
+
+const search = ref(route.query.search || '')
+const filters = ref({
+  status: route.query.status || '',
+  category: route.query.category || '',
+})
 let currentOptions = { page: 1, itemsPerPage: 25, sortBy: [] }
 let searchTimeout = null
 
@@ -82,6 +90,14 @@ const headers = [
   { title: 'Задач', key: 'open_tasks_count', sortable: false },
 ]
 
+function syncUrl() {
+  const q = {}
+  if (search.value) q.search = search.value
+  if (filters.value.status) q.status = filters.value.status
+  if (filters.value.category) q.category = filters.value.category
+  router.replace({ query: q })
+}
+
 function buildParams() {
   const params = { page: currentOptions.page, page_size: currentOptions.itemsPerPage }
   if (search.value) params.search = search.value
@@ -94,7 +110,7 @@ function buildParams() {
   return params
 }
 
-function fetchData() { store.fetchCases(buildParams()) }
+function fetchData() { syncUrl(); store.fetchCases(buildParams()) }
 function debouncedFetch() {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(fetchData, 300)

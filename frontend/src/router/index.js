@@ -24,6 +24,7 @@ const routes = [
 
       // Cases
       { path: 'cases', name: 'CasesList', component: () => import('@/views/cases/CasesListView.vue') },
+      { path: 'cases/kanban', name: 'CasesKanban', component: () => import('@/views/cases/CasesKanbanView.vue') },
       { path: 'cases/new', name: 'CaseCreate', component: () => import('@/views/cases/CaseFormView.vue') },
       { path: 'cases/:id', name: 'CaseDetail', component: () => import('@/views/cases/CaseDetailView.vue') },
       { path: 'cases/:id/edit', name: 'CaseEdit', component: () => import('@/views/cases/CaseFormView.vue') },

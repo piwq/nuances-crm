@@ -2,6 +2,8 @@ from django.urls import path
 from . import views, reports
 
 urlpatterns = [
+    path('billing/time-entries/export/', views.time_entries_csv_view, name='time-entry-export'),
+    path('billing/invoices/export/', views.invoices_csv_view, name='invoice-export'),
     path('billing/time-entries/', views.TimeEntryListCreateView.as_view(), name='time-entry-list'),
     path('billing/time-entries/summary/', views.time_entry_summary_view, name='time-entry-summary'),
     path('billing/monthly-stats/', views.billing_monthly_stats_view, name='billing-monthly-stats'),

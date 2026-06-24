@@ -1,10 +1,12 @@
+import csv
 from datetime import date
+from django.http import HttpResponse
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncMonth
 
 from common.permissions import IsAdmin
@@ -201,6 +203,50 @@ class InvoiceItemDetailView(generics.RetrieveDestroyAPIView):
         invoice = instance.invoice
         instance.delete()
         invoice.recalculate_totals()
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def time_entries_csv_view(request):
+    qs = TimeEntry.objects.select_related('case', 'lawyer')
+    if request.user.is_lawyer:
+        qs = qs.filter(lawyer=request.user)
+    qs = TimeEntryFilter(request.query_params, queryset=qs).qs.order_by('-date')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="time_entries.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Дата', 'Дело', 'Юрист', 'Часов', 'Описание', 'Биллинговая', 'Ставка (₽/ч)', 'Сумма (₽)', 'Выставлено'])
+    for e in qs:
+        writer.writerow([
+            e.date, str(e.case) if e.case else '', e.lawyer.get_full_name() if e.lawyer else '',
+            e.hours, e.description or '', 'Да' if e.is_billable else 'Нет',
+            e.hourly_rate or '', float(e.amount) if e.is_billable else '', 'Да' if e.invoice_id else 'Нет',
+        ])
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def invoices_csv_view(request):
+    qs = Invoice.objects.select_related('case', 'client')
+    if request.user.is_lawyer:
+        qs = qs.filter(
+            Q(case__assigned_lawyers=request.user) | Q(case__lead_lawyer=request.user)
+        ).distinct()
+    qs = InvoiceFilter(request.query_params, queryset=qs).qs.order_by('-created_at')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="invoices.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['№ счёта', 'Дело', 'Клиент', 'Статус', 'Выставлен', 'Срок оплаты', 'Оплачен', 'Сумма (₽)', 'НДС (₽)', 'Итого (₽)'])
+    for inv in qs:
+        writer.writerow([
+            inv.invoice_number, str(inv.case) if inv.case else '', str(inv.client) if inv.client else '',
+            inv.get_status_display(), inv.issue_date or '', inv.due_date or '', inv.paid_date or '',
+            float(inv.subtotal), float(inv.tax_amount), float(inv.total),
+        ])
+    return response
 
 
 @api_view(['GET'])

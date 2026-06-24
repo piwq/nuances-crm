@@ -1,6 +1,7 @@
 <template>
   <div>
     <page-header title="Учёт времени" :subtitle="summaryText">
+      <v-btn variant="tonal" prepend-icon="mdi-download" class="mr-2" :loading="exporting" @click="exportCsv">CSV</v-btn>
       <v-btn color="primary" prepend-icon="mdi-plus" @click="openDialog()">Добавить запись</v-btn>
     </page-header>
 
@@ -174,6 +175,7 @@ const cases = ref([])
 const loadingCases = ref(false)
 const formRef = ref(null)
 const saving = ref(false)
+const exporting = ref(false)
 const dialog = ref({ show: false, entry: null })
 const form = ref(emptyForm())
 
@@ -221,6 +223,24 @@ function buildParams() {
 
 function fetchData() { store.fetchTimeEntries(buildParams()) }
 function onTableUpdate(options) { currentOptions = options; fetchData() }
+
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const params = { ...buildParams() }
+    delete params.page
+    delete params.page_size
+    const { data } = await api.get('/api/v1/billing/time-entries/export/', { params, responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'time_entries.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  } finally {
+    exporting.value = false
+  }
+}
 
 async function loadCases() {
   if (cases.value.length) return

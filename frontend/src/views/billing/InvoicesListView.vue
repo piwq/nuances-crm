@@ -1,6 +1,7 @@
 <template>
   <div>
     <page-header title="Счета" :subtitle="`Всего: ${store.pagination.total}`">
+      <v-btn variant="tonal" prepend-icon="mdi-download" class="mr-2" :loading="exporting" @click="exportCsv">CSV</v-btn>
       <v-btn color="primary" prepend-icon="mdi-plus" @click="openDialog()">Новый счёт</v-btn>
     </page-header>
 
@@ -145,6 +146,7 @@ const loadingCases = ref(false)
 const loadingClients = ref(false)
 const formRef = ref(null)
 const saving = ref(false)
+const exporting = ref(false)
 const dialog = ref({ show: false })
 const form = ref(emptyForm())
 
@@ -192,6 +194,24 @@ function buildParams() {
 
 function fetchData() { store.fetchInvoices(buildParams()) }
 function onTableUpdate(options) { currentOptions = options; fetchData() }
+
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const params = { ...buildParams() }
+    delete params.page
+    delete params.page_size
+    const { data } = await api.get('/api/v1/billing/invoices/export/', { params, responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'invoices.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  } finally {
+    exporting.value = false
+  }
+}
 
 async function loadFormData() {
   loadingCases.value = true
