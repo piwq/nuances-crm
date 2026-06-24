@@ -39,9 +39,18 @@ class Command(BaseCommand):
             action='store_true',
             help='Удалить существующие данные (кроме суперпользователей) перед заполнением',
         )
+        parser.add_argument(
+            '--skip-if-exists',
+            action='store_true',
+            help='Ничего не делать, если демо-данные уже есть (для автозапуска в docker)',
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
+        if options['skip_if_exists'] and Client.objects.exists():
+            self.stdout.write('Демо-данные уже существуют — пропускаю.')
+            return
+
         random.seed(42)
         self.today = timezone.localdate()
         self.now = timezone.now()
@@ -119,6 +128,7 @@ class Command(BaseCommand):
                     'phone': phone,
                     'email': f'{username}@nuances.law',
                     'is_staff': role == CustomUser.ROLE_ADMIN,
+                    'is_superuser': role == CustomUser.ROLE_ADMIN,
                 },
             )
             if created:

@@ -24,6 +24,8 @@ services:
     restart: "no"
     command: >
       sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py seed_demo --skip-if-exists &&
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     volumes:
       - ./backend:/app
@@ -31,7 +33,7 @@ services:
       - static_files:/app/staticfiles
     env_file: .env
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_SETTINGS_MODULE: config.settings.demo
     depends_on:
       db:
         condition: service_healthy
@@ -84,7 +86,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost}
+        # пусто = относительные URL: всё (API, WS, static) ходит через nginx
+        # того же origin. Намеренно не берём значение из .env (там адрес для
+        # dev-режима с отдельным backend на :8000).
+        VITE_API_BASE_URL: ""
     restart: "no"
     networks:
       - frontend_net
