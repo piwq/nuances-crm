@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('billing/time-entries/', views.TimeEntryListCreateView.as_view(), name='time-entry-list'),
     path('billing/time-entries/summary/', views.time_entry_summary_view, name='time-entry-summary'),
+    path('billing/monthly-stats/', views.billing_monthly_stats_view, name='billing-monthly-stats'),
     path('billing/time-entries/<int:pk>/', views.TimeEntryDetailView.as_view(), name='time-entry-detail'),
     path('billing/invoices/', views.InvoiceListCreateView.as_view(), name='invoice-list'),
     path('billing/invoices/<int:pk>/', views.InvoiceDetailView.as_view(), name='invoice-detail'),

@@ -4,7 +4,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
-from django.db.models import Sum
+from django.db.models import Sum, Count
+from django.db.models.functions import TruncMonth
 
 from common.permissions import IsAdmin
 from .models import TimeEntry, Invoice, InvoiceItem
@@ -156,6 +157,29 @@ def mark_paid_view(request, pk):
     invoice.paid_date = request.data.get('paid_date') or date.today()
     invoice.save(update_fields=['status', 'paid_date'])
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def billing_monthly_stats_view(request):
+    months = int(request.query_params.get('months', 6))
+    qs = TimeEntry.objects.filter(is_billable=True)
+    if request.user.is_lawyer:
+        qs = qs.filter(lawyer=request.user)
+    rows = (
+        qs.annotate(month=TruncMonth('date'))
+        .values('month')
+        .annotate(total_hours=Sum('hours'), total_amount=Sum('amount'))
+        .order_by('month')
+    )
+    return Response([
+        {
+            'month': r['month'].strftime('%Y-%m'),
+            'total_hours': float(r['total_hours'] or 0),
+            'total_amount': float(r['total_amount'] or 0),
+        }
+        for r in rows[-months:]
+    ])
 
 
 class InvoiceItemListCreateView(generics.ListCreateAPIView):
