@@ -10,6 +10,8 @@ class Notification(models.Model):
     body = models.TextField(blank=True)
     link = models.CharField(max_length=255, blank=True)
     is_read = models.BooleanField(default=False)
+    # unique key prevents duplicate reminders (e.g. "task_42_due_1d")
+    key = models.CharField(max_length=200, blank=True, default='', db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
