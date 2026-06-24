@@ -18,10 +18,19 @@
             v-if="invoice.status === 'draft'"
             variant="tonal"
             color="primary"
+            prepend-icon="mdi-email-send"
+            @click="openEmailDialog"
+          >
+            Отправить на email
+          </v-btn>
+          <v-btn
+            v-if="invoice.status === 'draft'"
+            variant="tonal"
+            color="blue-grey"
             prepend-icon="mdi-send"
             @click="handleMarkSent"
           >
-            Отправить
+            Отметить как отправленный
           </v-btn>
           <v-btn
             v-if="invoice.status === 'sent' || invoice.status === 'overdue'"
@@ -146,6 +155,33 @@
       </v-col>
     </v-row>
 
+    <!-- Send Email Dialog -->
+    <v-dialog v-model="emailDialog" max-width="440" persistent>
+      <v-card>
+        <v-card-title>Отправить счёт на email</v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4">
+          <v-text-field
+            v-model="emailTo"
+            label="Email получателя *"
+            type="email"
+            prepend-inner-icon="mdi-email"
+            :rules="[v => !!v || 'Обязательное поле', v => /.+@.+\..+/.test(v) || 'Некорректный email']"
+            hint="Счёт будет отправлен с PDF-вложением"
+            persistent-hint
+          />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="emailDialog = false">Отмена</v-btn>
+          <v-btn color="primary" variant="tonal" :loading="sendingEmail" prepend-icon="mdi-send" @click="handleSendEmail">
+            Отправить
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Mark Paid Dialog -->
     <v-dialog v-model="paidDialog" max-width="360">
       <v-card>
@@ -218,6 +254,9 @@ const marking = ref(false)
 const downloadingPdf = ref(false)
 const paidDialog = ref(false)
 const paidDate = ref(new Date().toISOString().slice(0, 10))
+const emailDialog = ref(false)
+const emailTo = ref('')
+const sendingEmail = ref(false)
 
 const itemFormRef = ref(null)
 const savingItem = ref(false)
@@ -247,6 +286,26 @@ async function handleGenerate() {
     error(msg)
   } finally {
     generating.value = false
+  }
+}
+
+function openEmailDialog() {
+  emailTo.value = invoice.value.client_email || ''
+  emailDialog.value = true
+}
+
+async function handleSendEmail() {
+  if (!emailTo.value) return
+  sendingEmail.value = true
+  try {
+    const { data } = await api.post(`/api/v1/billing/invoices/${invoice.value.id}/send-email/`, { email: emailTo.value })
+    invoice.value = data
+    emailDialog.value = false
+    success(`Счёт отправлен на ${emailTo.value}`)
+  } catch (e) {
+    error(e.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingEmail.value = false
   }
 }
 

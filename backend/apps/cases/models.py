@@ -100,3 +100,24 @@ class Case(models.Model):
             count = Case.objects.filter(created_at__year=year).count() + 1
             self.case_number = f'CASE-{year}-{count:04d}'
         super().save(*args, **kwargs)
+
+
+class CaseNote(models.Model):
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='notes')
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='case_notes',
+    )
+    text = models.TextField(verbose_name='Текст заметки')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Заметка по делу'
+        verbose_name_plural = 'Заметки по делу'
+
+    def __str__(self):
+        return f'{self.case} — {self.author}'

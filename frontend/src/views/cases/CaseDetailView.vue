@@ -32,6 +32,7 @@
       <v-tab value="documents">Документы ({{ documentsStore.documents.length }})</v-tab>
       <v-tab value="tasks">Задачи ({{ openTasksCount }})</v-tab>
       <v-tab value="billing">Биллинг</v-tab>
+      <v-tab value="notes" @click="loadNotes">Заметки ({{ notes.length }})</v-tab>
       <v-tab value="history" @click="loadHistory">История</v-tab>
     </v-tabs>
 
@@ -184,6 +185,52 @@
         </v-row>
       </v-window-item>
 
+      <!-- Notes Tab -->
+      <v-window-item value="notes">
+        <v-card>
+          <v-card-title>Заметки</v-card-title>
+          <v-divider />
+          <div v-if="notesLoading" class="d-flex justify-center pa-8">
+            <v-progress-circular indeterminate color="primary" />
+          </div>
+          <v-list v-else-if="notes.length" lines="two">
+            <v-list-item v-for="note in notes" :key="note.id">
+              <template #prepend>
+                <v-avatar color="primary" size="36" class="mr-3">
+                  <span class="text-body-2 font-weight-bold">{{ note.author_initials }}</span>
+                </v-avatar>
+              </template>
+              <v-list-item-title class="text-body-2 font-weight-medium">{{ note.author_name }}</v-list-item-title>
+              <v-list-item-subtitle class="text-body-2 mt-1" style="white-space: pre-wrap; -webkit-line-clamp: unset; opacity: 1">{{ note.text }}</v-list-item-subtitle>
+              <div class="text-caption text-medium-emphasis mt-1">{{ formatDateTime(note.created_at) }}</div>
+              <template #append>
+                <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" @click="deleteNote(note.id)" />
+              </template>
+            </v-list-item>
+          </v-list>
+          <v-card-text v-else class="text-center pa-8 text-medium-emphasis">
+            <v-icon size="40" class="mb-2">mdi-note-outline</v-icon>
+            <div>Заметок пока нет</div>
+          </v-card-text>
+          <v-divider />
+          <v-card-text>
+            <v-textarea
+              v-model="newNoteText"
+              label="Новая заметка"
+              rows="2"
+              auto-grow
+              hide-details
+              variant="outlined"
+              density="compact"
+              class="mb-2"
+            />
+            <v-btn color="primary" variant="tonal" size="small" :loading="noteSaving" :disabled="!newNoteText.trim()" @click="addNote">
+              Добавить заметку
+            </v-btn>
+          </v-card-text>
+        </v-card>
+      </v-window-item>
+
       <!-- History Tab -->
       <v-window-item value="history">
         <v-card>
@@ -262,6 +309,11 @@ const uploading = ref(false)
 const history = ref([])
 const historyLoading = ref(false)
 let historyLoaded = false
+const notes = ref([])
+const notesLoading = ref(false)
+const noteSaving = ref(false)
+const newNoteText = ref('')
+let notesLoaded = false
 
 const categoryLabel = computed(() => CASE_CATEGORIES.find(c => c.value === caseItem.value?.category)?.label || caseItem.value?.category)
 const caseTasks = computed(() => tasksStore.tasks.filter(t => t.case === caseItem.value?.id))
@@ -379,6 +431,46 @@ const ACTION_COLORS = {
   UPLOAD: 'teal', DOWNLOAD: 'grey',
 }
 function actionColor(action) { return ACTION_COLORS[action] || 'grey' }
+
+async function loadNotes() {
+  if (notesLoaded || !caseItem.value) return
+  notesLoading.value = true
+  try {
+    const { data } = await api.get(`/api/v1/cases/${caseItem.value.id}/notes/`)
+    notes.value = data.results || data
+    notesLoaded = true
+  } catch {
+    error('Ошибка загрузки заметок')
+  } finally {
+    notesLoading.value = false
+  }
+}
+
+async function addNote() {
+  if (!newNoteText.value.trim() || !caseItem.value) return
+  noteSaving.value = true
+  try {
+    const { data } = await api.post(`/api/v1/cases/${caseItem.value.id}/notes/`, { text: newNoteText.value.trim() })
+    notes.value.unshift(data)
+    newNoteText.value = ''
+    success('Заметка добавлена')
+  } catch {
+    error('Ошибка добавления заметки')
+  } finally {
+    noteSaving.value = false
+  }
+}
+
+async function deleteNote(id) {
+  if (!confirm('Удалить заметку?') || !caseItem.value) return
+  try {
+    await api.delete(`/api/v1/cases/${caseItem.value.id}/notes/${id}/`)
+    notes.value = notes.value.filter(n => n.id !== id)
+    success('Заметка удалена')
+  } catch {
+    error('Ошибка удаления заметки')
+  }
+}
 
 async function loadHistory() {
   if (historyLoaded || !caseItem.value) return

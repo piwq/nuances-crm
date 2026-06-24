@@ -81,6 +81,12 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
         return InvoiceSerializer
 
     def get_queryset(self):
+        # auto-mark overdue: sent invoices past due_date become overdue
+        Invoice.objects.filter(
+            status=Invoice.STATUS_SENT,
+            due_date__lt=date.today(),
+        ).update(status=Invoice.STATUS_OVERDUE)
+
         qs = Invoice.objects.select_related('case', 'client')
         if self.request.user.is_lawyer:
             from django.db.models import Q
@@ -247,6 +253,50 @@ def invoices_csv_view(request):
             float(inv.subtotal), float(inv.tax_amount), float(inv.total),
         ])
     return response
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_invoice_email_view(request, pk):
+    try:
+        invoice = Invoice.objects.prefetch_related('items').select_related('case', 'client').get(pk=pk)
+    except Invoice.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    recipient_email = request.data.get('email') or (invoice.client.email if invoice.client else '')
+    if not recipient_email:
+        return Response({'detail': 'Не указан email клиента.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    subject = f'Счёт {invoice.invoice_number}'
+    body = (
+        f'Здравствуйте!\n\n'
+        f'Направляем счёт {invoice.invoice_number} на сумму {invoice.total} ₽.\n'
+        f'Срок оплаты: {invoice.due_date}.\n\n'
+        f'С уважением,\nЮридическое бюро «Нюансы»'
+    )
+
+    from django.core.mail import EmailMessage
+    from django.template.loader import render_to_string
+    msg = EmailMessage(subject=subject, body=body, to=[recipient_email])
+
+    try:
+        import weasyprint
+        html = render_to_string('billing/invoice_pdf.html', {'invoice': invoice})
+        pdf = weasyprint.HTML(string=html).write_pdf()
+        msg.attach(f'invoice_{invoice.invoice_number}.pdf', pdf, 'application/pdf')
+    except Exception:
+        pass  # send without attachment if PDF generation fails
+
+    try:
+        msg.send()
+    except Exception as e:
+        return Response({'detail': f'Ошибка отправки письма: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    if invoice.status == Invoice.STATUS_DRAFT:
+        invoice.status = Invoice.STATUS_SENT
+        invoice.save(update_fields=['status'])
+
+    return Response(InvoiceSerializer(invoice, context={'request': request}).data)
 
 
 @api_view(['GET'])

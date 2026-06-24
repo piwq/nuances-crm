@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
 from apps.clients.serializers import ClientListSerializer
-from .models import Case
+from .models import Case, CaseNote
 
 
 class CaseSerializer(serializers.ModelSerializer):
@@ -74,3 +74,28 @@ class CaseListSerializer(serializers.ModelSerializer):
 
     def get_open_tasks_count(self, obj):
         return obj.tasks.filter(status__in=['todo', 'in_progress']).count()
+
+
+class CaseNoteSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+    author_initials = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CaseNote
+        fields = ['id', 'text', 'author', 'author_name', 'author_initials', 'created_at', 'updated_at']
+        read_only_fields = ['author', 'created_at', 'updated_at']
+
+    def get_author_name(self, obj):
+        return obj.author.get_full_name() or obj.author.username if obj.author else '—'
+
+    def get_author_initials(self, obj):
+        if not obj.author:
+            return '?'
+        u = obj.author
+        if u.first_name and u.last_name:
+            return f'{u.first_name[0]}{u.last_name[0]}'
+        return (u.username or '?')[0].upper()
+
+    def create(self, validated_data):
+        validated_data['author'] = self.context['request'].user
+        return super().create(validated_data)

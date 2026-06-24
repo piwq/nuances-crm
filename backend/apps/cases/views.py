@@ -7,8 +7,8 @@ from django.db.models import Count, Q
 from common.utils import log_activity
 
 from common.permissions import IsAdmin, IsLawyerAssignedToCase
-from .models import Case
-from .serializers import CaseSerializer, CaseListSerializer
+from .models import Case, CaseNote
+from .serializers import CaseSerializer, CaseListSerializer, CaseNoteSerializer
 from .filters import CaseFilter
 
 
@@ -164,6 +164,23 @@ def change_status_view(request, uuid):
         description=f"Статус изменён: {old_status} → {new_status}"
     )
     return Response(CaseSerializer(case, context={'request': request}).data)
+
+
+class CaseNoteListCreateView(generics.ListCreateAPIView):
+    serializer_class = CaseNoteSerializer
+
+    def get_queryset(self):
+        return CaseNote.objects.filter(case_id=self.kwargs['case_pk']).select_related('author')
+
+    def perform_create(self, serializer):
+        serializer.save(case_id=self.kwargs['case_pk'])
+
+
+class CaseNoteDetailView(generics.DestroyAPIView):
+    serializer_class = CaseNoteSerializer
+
+    def get_queryset(self):
+        return CaseNote.objects.filter(case_id=self.kwargs['case_pk'])
 
 
 @api_view(['GET'])

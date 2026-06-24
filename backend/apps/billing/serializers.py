@@ -45,13 +45,14 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(serializers.ModelSerializer):
     items = InvoiceItemSerializer(many=True, read_only=True)
     client_name = serializers.SerializerMethodField()
+    client_email = serializers.SerializerMethodField()
     case_title = serializers.SerializerMethodField()
     time_entries_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Invoice
         fields = [
-            'id', 'invoice_number', 'case', 'case_title', 'client', 'client_name',
+            'id', 'invoice_number', 'case', 'case_title', 'client', 'client_name', 'client_email',
             'status', 'issue_date', 'due_date', 'paid_date',
             'subtotal', 'tax_rate', 'tax_amount', 'total',
             'notes', 'items', 'time_entries_count',
@@ -61,6 +62,9 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     def get_client_name(self, obj):
         return str(obj.client)
+
+    def get_client_email(self, obj):
+        return obj.client.email if obj.client else ''
 
     def get_case_title(self, obj):
         return str(obj.case)
