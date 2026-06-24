@@ -14,6 +14,7 @@
       <v-tab value="documents">Документы ({{ documentsStore.documents.length }})</v-tab>
       <v-tab value="tasks">Задачи ({{ openTasksCount }})</v-tab>
       <v-tab value="billing">Биллинг</v-tab>
+      <v-tab value="history" @click="loadHistory">История</v-tab>
     </v-tabs>
 
     <v-window v-model="tab">
@@ -150,6 +151,36 @@
           </v-col>
         </v-row>
       </v-window-item>
+
+      <!-- History Tab -->
+      <v-window-item value="history">
+        <v-card>
+          <v-card-title>История изменений</v-card-title>
+          <v-divider />
+          <div v-if="historyLoading" class="d-flex justify-center pa-8">
+            <v-progress-circular indeterminate color="primary" />
+          </div>
+          <v-timeline v-else-if="history.length" density="compact" side="end" class="pa-4">
+            <v-timeline-item
+              v-for="entry in history"
+              :key="entry.id"
+              :dot-color="actionColor(entry.action)"
+              size="x-small"
+            >
+              <div class="d-flex justify-space-between align-start">
+                <div>
+                  <div class="text-body-2 font-weight-medium">{{ entry.description }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ entry.user_name }}</div>
+                </div>
+                <div class="text-caption text-medium-emphasis ml-4 flex-shrink-0">{{ formatDateTime(entry.timestamp) }}</div>
+              </div>
+            </v-timeline-item>
+          </v-timeline>
+          <v-card-text v-else class="text-center pa-12 text-medium-emphasis">
+            История изменений пуста
+          </v-card-text>
+        </v-card>
+      </v-window-item>
     </v-window>
 
     <!-- Upload Dialog -->
@@ -174,11 +205,12 @@ import { useCasesStore } from '@/stores/cases'
 import { useDocumentsStore } from '@/stores/documents'
 import { useTasksStore } from '@/stores/tasks'
 import { useBillingStore } from '@/stores/billing'
-import { formatDate } from '@/utils/formatters'
+import { formatDate, formatDateTime } from '@/utils/formatters'
 import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useNotification } from '@/composables/useNotification'
+import api from '@/plugins/axios'
 
 const route = useRoute()
 const casesStore = useCasesStore()
@@ -192,6 +224,9 @@ const loading = ref(true)
 const tab = ref('info')
 const docDialog = ref(false)
 const newFile = ref(null)
+const history = ref([])
+const historyLoading = ref(false)
+let historyLoaded = false
 
 const categoryLabel = computed(() => CASE_CATEGORIES.find(c => c.value === caseItem.value?.category)?.label || caseItem.value?.category)
 const caseTasks = computed(() => tasksStore.tasks.filter(t => t.case === caseItem.value?.id))
@@ -257,6 +292,27 @@ async function toggleTask(task) {
 
 function taskPriorityColor(p) {
   return TASK_PRIORITIES.find(tp => tp.value === p)?.color || 'grey'
+}
+
+const ACTION_COLORS = {
+  CREATE: 'success', UPDATE: 'primary', DELETE: 'error',
+  STATUS_CHANGE: 'warning', ASSIGN_LAWYER: 'info',
+  UPLOAD: 'teal', DOWNLOAD: 'grey',
+}
+function actionColor(action) { return ACTION_COLORS[action] || 'grey' }
+
+async function loadHistory() {
+  if (historyLoaded || !caseItem.value) return
+  historyLoading.value = true
+  try {
+    const { data } = await api.get(`/api/v1/cases/${caseItem.value.uuid}/history/`)
+    history.value = data.results || data
+    historyLoaded = true
+  } catch {
+    // silent fail - history is non-critical
+  } finally {
+    historyLoading.value = false
+  }
 }
 
 onMounted(fetchData)

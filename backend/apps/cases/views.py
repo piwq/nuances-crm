@@ -22,6 +22,16 @@ class CaseListCreateView(generics.ListCreateAPIView):
             return CaseListSerializer
         return CaseSerializer
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_activity(
+            user=self.request.user,
+            action="CREATE",
+            resource_type="Case",
+            resource_uuid=instance.uuid,
+            description=f"Создано дело: {instance.title}"
+        )
+
     def get_queryset(self):
         qs = Case.objects.select_related('client', 'lead_lawyer').prefetch_related('assigned_lawyers', 'tasks')
         if self.request.user.is_lawyer:
@@ -139,11 +149,19 @@ def change_status_view(request, uuid):
     if new_status not in dict(Case.STATUS_CHOICES):
         return Response({'detail': 'Недопустимый статус.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    old_status = case.status
     case.status = new_status
     if new_status == Case.STATUS_CLOSED and not case.closed_at:
         from datetime import date
         case.closed_at = date.today()
     case.save(update_fields=['status', 'closed_at'])
+    log_activity(
+        user=request.user,
+        action="STATUS_CHANGE",
+        resource_type="Case",
+        resource_uuid=case.uuid,
+        description=f"Статус изменён: {old_status} → {new_status}"
+    )
     return Response(CaseSerializer(case, context={'request': request}).data)
 
 
