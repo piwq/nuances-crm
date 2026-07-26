@@ -65,6 +65,12 @@ body, .v-application {
 .font-mono  { font-family: var(--font-mono) !important; }
 .case-number { font-family: var(--font-mono) !important; font-size: 0.8125rem; color: var(--ink-400); }
 
+/* gap-утилиты: шаблоны используют gap-1..3, но у Vuetify таких классов нет
+   (у него ga-*) — без этих правил все флекс-группы слипались */
+.gap-1 { gap: 4px; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+
 .page-enter-active,
 .page-leave-active {
   transition: opacity var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out);
