@@ -10,14 +10,14 @@ from .serializers import ChatMessageSerializer
 @permission_classes([IsAuthenticated])
 def lawyers_list_view(request):
     """
-    Returns a list of all lawyers except the current user,
-    including unread message counts for each.
+    Все активные сотрудники (юристы И администраторы), кроме себя,
+    с количеством непрочитанных сообщений от каждого.
     """
     from apps.accounts.models import CustomUser
     from apps.accounts.serializers import UserPublicSerializer
     from django.db.models import Count, Q
 
-    lawyers = CustomUser.objects.filter(role=CustomUser.ROLE_LAWYER).exclude(id=request.user.id)
+    lawyers = CustomUser.objects.filter(is_active=True).exclude(id=request.user.id).order_by('last_name', 'first_name')
 
     # Annotate with unread counts
     # messages where recipient is current user, sender is the lawyer, and is_read is False
@@ -71,7 +71,9 @@ class ChatHistoryView(generics.ListAPIView):
             return ChatMessage.objects.none()
         
         user = self.request.user
+        # новые сообщения первыми: страница 1 — свежая переписка,
+        # следующие страницы — всё более ранняя (фронт разворачивает)
         return ChatMessage.objects.filter(
             (Q(user=user) & Q(recipient_id=recipient_id)) |
             (Q(user_id=recipient_id) & Q(recipient=user))
-        ).order_by('created_at')
+        ).select_related('user', 'recipient').order_by('-created_at')

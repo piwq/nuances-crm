@@ -94,17 +94,21 @@ async function fetchAll() {
   }
 }
 
+let wsRetries = 0
+
 function connectWs() {
   const token = auth.accessToken
   if (!token) return
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   ws = new WebSocket(`${proto}://${location.host}/ws/notifications/?token=${token}`)
 
-  ws.onopen = () => { wsConnected.value = true }
+  ws.onopen = () => { wsConnected.value = true; wsRetries = 0 }
   ws.onclose = () => {
     wsConnected.value = false
-    // reconnect after 5s
-    setTimeout(connectWs, 5000)
+    // экспоненциальный backoff до 60с — без шторма переподключений
+    const delay = Math.min(60000, 5000 * 2 ** wsRetries)
+    wsRetries += 1
+    setTimeout(connectWs, delay)
   }
   ws.onerror = () => { ws.close() }
   ws.onmessage = (event) => {

@@ -65,8 +65,13 @@
               <v-progress-circular indeterminate color="primary" />
             </div>
             <div v-else class="messages-list">
-              <div 
-                v-for="msg in messages" 
+              <div v-if="historyHasMore" class="d-flex justify-center mb-4">
+                <v-btn size="small" variant="tonal" :loading="loadingOlder" @click="loadOlder">
+                  Показать более ранние
+                </v-btn>
+              </div>
+              <div
+                v-for="msg in messages"
                 :key="msg.id || msg.created_at" 
                 :class="['d-flex mb-4', msg.user?.id === auth.user?.id ? 'justify-end' : 'justify-start']"
               >
@@ -137,7 +142,12 @@ const messages = ref([])
 const newMessage = ref('')
 const loading = ref(false)
 const connected = ref(false)
+const historyHasMore = ref(false)
+const loadingOlder = ref(false)
+let historyPage = 1
 let socket = null
+let reconnectTimer = null
+let reconnectAttempts = 0
 
 onMounted(async () => {
   await fetchLawyers()
@@ -179,10 +189,13 @@ async function selectLawyer(lawyer) {
 async function fetchHistory() {
   if (!activeLawyer.value) return
   try {
-    const response = await api.get('/api/v1/chat/history/', {
-      params: { recipient_id: activeLawyer.value.id }
+    historyPage = 1
+    const { data } = await api.get('/api/v1/chat/history/', {
+      params: { recipient_id: activeLawyer.value.id, page: 1 }
     })
-    messages.value = response.data.results || response.data
+    // API отдаёт новые первыми — на экране разворачиваем в хронологию
+    messages.value = (data.results || data).slice().reverse()
+    historyHasMore.value = !!data.next
     loading.value = false
     scrollToBottom()
   } catch (error) {
@@ -191,7 +204,32 @@ async function fetchHistory() {
   }
 }
 
+async function loadOlder() {
+  if (!activeLawyer.value || loadingOlder.value) return
+  loadingOlder.value = true
+  const container = document.getElementById('chat-container')
+  const prevHeight = container ? container.scrollHeight : 0
+  try {
+    const { data } = await api.get('/api/v1/chat/history/', {
+      params: { recipient_id: activeLawyer.value.id, page: historyPage + 1 }
+    })
+    historyPage += 1
+    messages.value = [...(data.results || []).slice().reverse(), ...messages.value]
+    historyHasMore.value = !!data.next
+    // сохранить позицию: контент вырос сверху, держим взгляд на том же сообщении
+    await nextTick()
+    if (container) container.scrollTop += container.scrollHeight - prevHeight
+  } catch {
+    showNotification('Не удалось загрузить более ранние сообщения', 'error')
+  } finally {
+    loadingOlder.value = false
+  }
+}
+
 function closeSocket() {
+  clearTimeout(reconnectTimer)
+  reconnectTimer = null
+  reconnectAttempts = 0
   if (socket) {
     socket.onclose = null
     socket.close()
@@ -217,6 +255,7 @@ function connectWebSocket() {
 
   socket.onopen = () => {
     connected.value = true
+    reconnectAttempts = 0
   }
 
   socket.onmessage = (event) => {
@@ -250,7 +289,11 @@ function connectWebSocket() {
   socket.onclose = () => {
     if (socket) {
       connected.value = false
-      setTimeout(connectWebSocket, 3000)
+      // экспоненциальный backoff: 1с → 2с → 4с … максимум 30с,
+      // чтобы лежащий бэкенд не получал шторм переподключений
+      const delay = Math.min(30000, 1000 * 2 ** reconnectAttempts)
+      reconnectAttempts += 1
+      reconnectTimer = setTimeout(connectWebSocket, delay)
     }
   }
 
