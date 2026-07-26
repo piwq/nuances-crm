@@ -124,7 +124,6 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useNotification } from '@/composables/useNotification'
@@ -135,7 +134,6 @@ import GlobalSearch from '@/components/common/GlobalSearch.vue'
 import TimeTracker from '@/components/common/TimeTracker.vue'
 import NotificationBell from '@/components/common/NotificationBell.vue'
 
-const router = useRouter()
 const auth = useAuthStore()
 const theme = useTheme()
 const { snackbar } = useNotification()
@@ -176,7 +174,8 @@ const navItems = [
 
 async function handleLogout() {
   await auth.logout()
-  router.push({ name: 'Login' })
+  // полная перезагрузка сбрасывает все сторы/WS/таймеры до чистого состояния
+  window.location.assign('/login')
 }
 </script>
 

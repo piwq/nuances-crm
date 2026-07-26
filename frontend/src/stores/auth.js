@@ -32,6 +32,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     accessToken.value = null
     refreshToken.value = null
+    // чужой запущенный таймер не должен доставаться следующему пользователю
+    localStorage.removeItem('timer')
   }
 
   function setTokens(access, refresh) {

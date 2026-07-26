@@ -18,8 +18,20 @@ app.use(vuetify)
 // Listen for forced logout events from axios interceptor
 window.addEventListener('auth:logout', () => {
   const auth = useAuthStore()
-  auth.logout()
-  router.push({ name: 'Login' })
+  auth.logout().finally(() => {
+    // полная перезагрузка: сбрасывает все сторы, WS и таймеры,
+    // чтобы данные не пережили смену пользователя
+    window.location.assign('/login')
+  })
 })
+
+// Данные пользователя (роль, is_active) могли устареть в localStorage —
+// освежаем при каждом старте приложения
+{
+  const auth = useAuthStore()
+  if (auth.accessToken) {
+    auth.fetchMe().catch(() => {})
+  }
+}
 
 app.mount('#app')
