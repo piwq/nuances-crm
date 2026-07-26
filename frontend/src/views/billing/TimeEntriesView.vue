@@ -23,10 +23,10 @@
             />
           </v-col>
           <v-col cols="6" md="2">
-            <v-text-field v-model="filters.date_from" label="С" type="date" clearable hide-details @update:model-value="fetchData" />
+            <date-field v-model="filters.date_from" label="С" clearable hide-details @update:model-value="fetchData" />
           </v-col>
           <v-col cols="6" md="2">
-            <v-text-field v-model="filters.date_to" label="По" type="date" clearable hide-details @update:model-value="fetchData" />
+            <date-field v-model="filters.date_to" label="По" clearable hide-details @update:model-value="fetchData" />
           </v-col>
           <v-col cols="6" md="2">
             <v-select
@@ -111,7 +111,7 @@
             />
             <v-row dense>
               <v-col cols="6">
-                <v-text-field v-model="form.date" label="Дата *" type="date" :rules="[required]" class="mb-2" />
+                <date-field v-model="form.date" label="Дата *" :rules="[required]" class="mb-2" />
               </v-col>
               <v-col cols="6">
                 <v-text-field
@@ -165,6 +165,7 @@ import { formatDate, formatHours, formatCurrency } from '@/utils/formatters'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
 import FormDialog from '@/components/common/FormDialog.vue'
+import DateField from '@/components/common/DateField.vue'
 
 const route = useRoute()
 const store = useBillingStore()

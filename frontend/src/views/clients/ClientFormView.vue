@@ -34,7 +34,7 @@
                 <v-text-field v-model="form.tax_id" label="ИНН" @blur="checkConflict" />
               </v-col>
               <v-col cols="12" md="4">
-                <v-text-field v-model="form.date_of_birth" label="Дата рождения" type="date" />
+                <date-field v-model="form.date_of_birth" label="Дата рождения" />
               </v-col>
             </v-row>
           </template>
@@ -102,6 +102,7 @@ import { useClientsStore } from '@/stores/clients'
 import { useNotification } from '@/composables/useNotification'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
+import DateField from '@/components/common/DateField.vue'
 
 const router = useRouter()
 const route = useRoute()

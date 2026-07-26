@@ -219,7 +219,7 @@
       <v-card>
         <v-card-title>Отметить как оплаченный</v-card-title>
         <v-card-text>
-          <v-text-field v-model="paidDate" label="Дата оплаты" type="date" />
+          <date-field v-model="paidDate" label="Дата оплаты" />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -274,6 +274,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import api from '@/plugins/axios'
 import FormDialog from '@/components/common/FormDialog.vue'
+import DateField from '@/components/common/DateField.vue'
 
 const route = useRoute()
 const store = useBillingStore()

@@ -193,12 +193,10 @@
                 />
               </v-col>
               <v-col cols="12" md="4">
-                <v-text-field
+                <date-field
                   v-model="form.due_date"
                   label="Срок"
-                  type="date"
-                  class="mb-2"
-                />
+                  class="mb-2" />
               </v-col>
             </v-row>
           </v-form>
@@ -228,6 +226,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import api from '@/plugins/axios'
 import FormDialog from '@/components/common/FormDialog.vue'
+import DateField from '@/components/common/DateField.vue'
 
 const store = useTasksStore()
 const { success, error } = useNotification()

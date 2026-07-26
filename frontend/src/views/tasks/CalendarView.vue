@@ -55,13 +55,11 @@
 
             <v-row dense class="mt-2">
               <v-col :cols="form.all_day ? 12 : 6" :md="form.all_day ? 6 : 6">
-                <v-text-field
+                <date-field
                   v-model="form.start_date"
                   :label="form.all_day ? 'Дата *' : 'Начало (дата) *'"
-                  type="date"
                   :rules="[required]"
-                  class="mb-2"
-                />
+                  class="mb-2" />
               </v-col>
               <v-col v-if="!form.all_day" cols="6" md="6">
                 <v-text-field v-model="form.start_time" label="Время начала" type="time" class="mb-2" />
@@ -70,7 +68,7 @@
 
             <v-row v-if="!form.all_day" dense>
               <v-col cols="6">
-                <v-text-field v-model="form.end_date" label="Конец (дата)" type="date" class="mb-2" />
+                <date-field v-model="form.end_date" label="Конец (дата)" class="mb-2" />
               </v-col>
               <v-col cols="6">
                 <v-text-field v-model="form.end_time" label="Время конца" type="time" class="mb-2" />
@@ -121,6 +119,7 @@ import { EVENT_TYPES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
 import FormDialog from '@/components/common/FormDialog.vue'
+import DateField from '@/components/common/DateField.vue'
 
 const store = useEventsStore()
 const { success, error } = useNotification()

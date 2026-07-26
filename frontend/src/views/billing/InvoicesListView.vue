@@ -100,10 +100,10 @@
             />
             <v-row dense>
               <v-col cols="6">
-                <v-text-field v-model="form.issue_date" label="Дата выставления *" type="date" :rules="[required]" class="mb-2" />
+                <date-field v-model="form.issue_date" label="Дата выставления *" :rules="[required]" class="mb-2" />
               </v-col>
               <v-col cols="6">
-                <v-text-field v-model="form.due_date" label="Срок оплаты" type="date" class="mb-2" />
+                <date-field v-model="form.due_date" label="Срок оплаты" class="mb-2" />
               </v-col>
             </v-row>
             <v-text-field v-model.number="form.tax_rate" label="Ставка НДС (%)" type="number" min="0" max="100" class="mb-2" />
@@ -133,6 +133,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import api from '@/plugins/axios'
 import FormDialog from '@/components/common/FormDialog.vue'
+import DateField from '@/components/common/DateField.vue'
 
 const store = useBillingStore()
 const route = useRoute()

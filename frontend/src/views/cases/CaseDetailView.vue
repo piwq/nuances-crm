@@ -376,7 +376,7 @@
           />
           <v-row dense>
             <v-col cols="6">
-              <v-text-field v-model="taskForm.due_date" label="Срок" type="date" clearable />
+              <date-field v-model="taskForm.due_date" label="Срок" clearable />
             </v-col>
             <v-col cols="6">
               <v-select v-model="taskForm.priority" :items="TASK_PRIORITIES" item-title="label" item-value="value" label="Приоритет" />
@@ -433,6 +433,7 @@ import StatusChip from '@/components/common/StatusChip.vue'
 import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import api from '@/plugins/axios'
+import DateField from '@/components/common/DateField.vue'
 
 const route = useRoute()
 const router = useRouter()

@@ -69,7 +69,7 @@
               />
             </v-col>
             <v-col cols="12" md="6">
-              <v-text-field v-model="form.opened_at" label="Дата открытия" type="date" />
+              <date-field v-model="form.opened_at" label="Дата открытия" />
             </v-col>
           </v-row>
 
@@ -120,18 +120,15 @@
               />
             </v-col>
             <v-col cols="12" md="4">
-              <v-text-field v-model="form.expected_close_date" label="Планируемая дата закрытия" type="date" />
+              <date-field v-model="form.expected_close_date" label="Планируемая дата закрытия" />
             </v-col>
           </v-row>
 
           <v-row dense>
             <v-col cols="12" md="4">
-              <v-text-field
+              <date-field
                 v-model="form.key_deadline"
-                label="Ключевой процессуальный срок"
-                type="date"
-                prepend-inner-icon="mdi-gavel"
-              />
+                label="Ключевой процессуальный срок" />
             </v-col>
             <v-col cols="12" md="8">
               <v-text-field
@@ -151,7 +148,7 @@
               <v-expansion-panel-text>
                 <v-row dense>
                   <v-col cols="12" md="4">
-                    <v-text-field v-model="calc.start" label="Дата события" type="date" hide-details />
+                    <date-field v-model="calc.start" label="Дата события" hide-details />
                   </v-col>
                   <v-col cols="6" md="2">
                     <v-text-field v-model.number="calc.amount" label="Через" type="number" min="1" hide-details />
@@ -208,6 +205,7 @@ import { calcDeadline } from '@/utils/deadlines'
 import { formatDate } from '@/utils/formatters'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
+import DateField from '@/components/common/DateField.vue'
 
 const router = useRouter()
 const route = useRoute()
