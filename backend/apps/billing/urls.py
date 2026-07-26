@@ -15,6 +15,7 @@ urlpatterns = [
     path('billing/invoices/<int:pk>/mark-paid/', views.mark_paid_view, name='invoice-mark-paid'),
     path('billing/invoices/<int:pk>/send-email/', views.send_invoice_email_view, name='invoice-send-email'),
     path('billing/invoices/<int:pk>/pdf/', views.invoice_pdf_view, name='invoice-pdf'),
+    path('billing/invoices/<int:pk>/act/', views.invoice_act_pdf_view, name='invoice-act'),
     path('billing/invoice-items/', views.InvoiceItemListCreateView.as_view(), name='invoice-item-list'),
     path('billing/invoice-items/<int:pk>/', views.InvoiceItemDetailView.as_view(), name='invoice-item-detail'),
     path('billing/reports/', reports.reports_view, name='billing-reports'),

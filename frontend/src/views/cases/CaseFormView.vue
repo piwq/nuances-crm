@@ -83,6 +83,34 @@
           </v-row>
 
           <v-row dense>
+            <v-col cols="12" md="8">
+              <v-text-field
+                v-model="form.opposing_party"
+                label="Противоположная сторона"
+                placeholder="ФИО или название организации"
+                @blur="checkConflict"
+              />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-text-field v-model="form.opposing_party_inn" label="ИНН противоположной стороны" @blur="checkConflict" />
+            </v-col>
+          </v-row>
+
+          <v-alert
+            v-if="conflictHits.length"
+            type="warning"
+            variant="tonal"
+            density="comfortable"
+            icon="mdi-alert-octagon"
+            class="mb-4"
+          >
+            <strong>Возможный конфликт интересов!</strong> Противоположная сторона совпадает с нашим клиентом:
+            <div v-for="hit in conflictHits" :key="hit.uuid">
+              • {{ hit.display_name }}<span v-if="hit.tax_id"> (ИНН {{ hit.tax_id }})</span>
+            </div>
+          </v-alert>
+
+          <v-row dense>
             <v-col cols="12" md="4">
               <v-text-field
                 v-model="form.hourly_rate"
@@ -114,6 +142,45 @@
             </v-col>
           </v-row>
 
+          <v-expansion-panels variant="accordion" class="mb-4">
+            <v-expansion-panel>
+              <v-expansion-panel-title>
+                <v-icon size="18" class="mr-2">mdi-calculator-variant-outline</v-icon>
+                Калькулятор срока
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-row dense>
+                  <v-col cols="12" md="4">
+                    <v-text-field v-model="calc.start" label="Дата события" type="date" hide-details />
+                  </v-col>
+                  <v-col cols="6" md="2">
+                    <v-text-field v-model.number="calc.amount" label="Через" type="number" min="1" hide-details />
+                  </v-col>
+                  <v-col cols="6" md="3">
+                    <v-select
+                      v-model="calc.unit"
+                      :items="[{ title: 'дней', value: 'days' }, { title: 'месяцев', value: 'months' }]"
+                      label="Единица"
+                      hide-details
+                    />
+                  </v-col>
+                  <v-col cols="12" md="3" class="d-flex align-center">
+                    <v-btn variant="tonal" color="primary" block :disabled="!calcResult" @click="applyCalc">
+                      Подставить
+                    </v-btn>
+                  </v-col>
+                </v-row>
+                <div v-if="calcResult" class="text-body-2 mt-3">
+                  Срок: <strong>{{ formatDate(calcResult.date) }}</strong>
+                  <span v-if="calcResult.shifted" class="text-warning"> — перенесён с выходного на рабочий день</span>
+                </div>
+                <div class="text-caption text-medium-emphasis mt-1">
+                  Праздничные дни не учитываются — сверьтесь с производственным календарём.
+                </div>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
+
           <v-textarea v-model="form.description" label="Описание / Детали дела" rows="4" />
 
           <v-divider class="my-4" />
@@ -137,6 +204,8 @@ import { useCasesStore } from '@/stores/cases'
 import { useClientsStore } from '@/stores/clients'
 import { useNotification } from '@/composables/useNotification'
 import { CASE_STATUSES, CASE_CATEGORIES } from '@/utils/constants'
+import { calcDeadline } from '@/utils/deadlines'
+import { formatDate } from '@/utils/formatters'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
 
@@ -165,6 +234,8 @@ const form = ref({
   lead_lawyer: null,
   court_name: '',
   court_case_number: '',
+  opposing_party: '',
+  opposing_party_inn: '',
   opened_at: new Date().toISOString().substr(0, 10),
   expected_close_date: null,
   key_deadline: null,
@@ -172,6 +243,31 @@ const form = ref({
   description: '',
   hourly_rate: null,
 })
+
+const calc = ref({ start: new Date().toISOString().slice(0, 10), amount: 30, unit: 'days' })
+const calcResult = computed(() => calcDeadline(calc.value.start, calc.value.amount, calc.value.unit))
+
+function applyCalc() {
+  if (!calcResult.value) return
+  form.value.key_deadline = calcResult.value.date
+}
+
+const conflictHits = ref([])
+
+async function checkConflict() {
+  const name = (form.value.opposing_party || '').trim()
+  const inn = (form.value.opposing_party_inn || '').trim()
+  if (name.length < 3 && !inn) {
+    conflictHits.value = []
+    return
+  }
+  try {
+    const { data } = await api.get('/api/v1/conflict-check/', { params: { name, inn } })
+    conflictHits.value = data.client_matches
+  } catch {
+    // проверка не критична, молча пропускаем
+  }
+}
 
 async function fetchInitialData() {
   loadingClients.value = true

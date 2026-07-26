@@ -324,6 +324,32 @@ def send_invoice_email_view(request, pk):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def invoice_act_pdf_view(request, pk):
+    """Акт выполненных работ к счёту (позиции счёта = оказанные услуги)."""
+    invoice = _get_invoice_or_none(
+        request, pk, Invoice.objects.prefetch_related('items').select_related('case', 'client'))
+    if invoice is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    from django.template.loader import render_to_string
+    try:
+        import weasyprint
+        html = render_to_string('billing/act_pdf.html', {
+            'invoice': invoice,
+            'act_number': invoice.invoice_number.replace('INV', 'ACT'),
+            'act_date': (invoice.paid_date or date.today()).strftime('%d.%m.%Y'),
+        })
+        pdf = weasyprint.HTML(string=html).write_pdf()
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="act_{invoice.invoice_number}.pdf"'
+        return response
+    except Exception as e:
+        return Response({'detail': f'Ошибка генерации акта: {e}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def invoice_pdf_view(request, pk):
     invoice = _get_invoice_or_none(
         request, pk, Invoice.objects.prefetch_related('items').select_related('case', 'client'))

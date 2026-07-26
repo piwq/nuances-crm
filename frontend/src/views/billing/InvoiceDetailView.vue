@@ -49,6 +49,14 @@
           >
             PDF
           </v-btn>
+          <v-btn
+            variant="tonal"
+            prepend-icon="mdi-file-sign"
+            :loading="downloadingAct"
+            @click="handleDownloadAct"
+          >
+            Акт
+          </v-btn>
           <v-btn variant="text" prepend-icon="mdi-arrow-left" to="/billing/invoices">Назад</v-btn>
         </div>
       </template>
@@ -252,6 +260,7 @@ const loading = ref(false)
 const generating = ref(false)
 const marking = ref(false)
 const downloadingPdf = ref(false)
+const downloadingAct = ref(false)
 const paidDialog = ref(false)
 const paidDate = ref(new Date().toISOString().slice(0, 10))
 const emailDialog = ref(false)
@@ -339,6 +348,23 @@ async function handleDownloadPDF() {
     error('Ошибка генерации PDF')
   } finally {
     downloadingPdf.value = false
+  }
+}
+
+async function handleDownloadAct() {
+  downloadingAct.value = true
+  try {
+    const { data } = await api.get(`/api/v1/billing/invoices/${invoice.value.id}/act/`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `act_${invoice.value.invoice_number}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    error('Ошибка генерации акта')
+  } finally {
+    downloadingAct.value = false
   }
 }
 

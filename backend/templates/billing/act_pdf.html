@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #333; }
+  .header { margin-bottom: 24px; }
+  .act-title { font-size: 20px; font-weight: bold; color: #1a237e; }
+  .act-sub { color: #666; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  th { background: #1a237e; color: white; padding: 8px 12px; text-align: left; }
+  td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) { background: #f5f5f5; }
+  .totals { margin-top: 16px; text-align: right; }
+  .totals table { width: 300px; margin-left: auto; }
+  .totals td { border: none; padding: 4px 12px; }
+  .total-row td { font-weight: bold; font-size: 14px; border-top: 2px solid #333; }
+  .parties { display: flex; gap: 40px; margin: 16px 0; }
+  .party { flex: 1; }
+  .party h3 { font-size: 11px; text-transform: uppercase; color: #999; margin-bottom: 8px; }
+  .party p { margin: 2px 0; }
+  .statement { margin: 20px 0; }
+  .signatures { display: flex; gap: 40px; margin-top: 50px; }
+  .sig { flex: 1; }
+  .sig .line { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size: 10px; color: #666; }
+  .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #999; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="act-title">АКТ ВЫПОЛНЕННЫХ РАБОТ № {{ act_number }}</div>
+  <div class="act-sub">от {{ act_date }} к счёту {{ invoice.invoice_number }}</div>
+</div>
+
+<div class="parties">
+  <div class="party">
+    <h3>Исполнитель</h3>
+    <p><strong>Юридическое бюро «Нюансы»</strong></p>
+  </div>
+  <div class="party">
+    <h3>Заказчик</h3>
+    <p><strong>{{ invoice.client }}</strong></p>
+    {% if invoice.client.tax_id %}<p>ИНН: {{ invoice.client.tax_id }}</p>{% endif %}
+    {% if invoice.client.address %}<p>{{ invoice.client.address }}</p>{% endif %}
+  </div>
+  <div class="party">
+    <h3>Дело</h3>
+    <p><strong>{{ invoice.case.title }}</strong></p>
+    <p>{{ invoice.case.case_number }}</p>
+  </div>
+</div>
+
+<div class="statement">
+  Исполнитель выполнил, а Заказчик принял следующие юридические услуги:
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Наименование услуги</th>
+      <th style="text-align:right;">Кол-во</th>
+      <th style="text-align:right;">Цена</th>
+      <th style="text-align:right;">Сумма</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in invoice.items.all %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ item.description }}</td>
+      <td style="text-align:right;">{{ item.quantity }}</td>
+      <td style="text-align:right;">{{ item.unit_price }} ₽</td>
+      <td style="text-align:right;">{{ item.amount }} ₽</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" style="text-align:center; color:#999;">Нет позиций</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr><td>Сумма без НДС:</td><td style="text-align:right;">{{ invoice.subtotal }} ₽</td></tr>
+    <tr><td>НДС ({{ invoice.tax_rate }}%):</td><td style="text-align:right;">{{ invoice.tax_amount }} ₽</td></tr>
+    <tr class="total-row"><td>ИТОГО:</td><td style="text-align:right;">{{ invoice.total }} ₽</td></tr>
+  </table>
+</div>
+
+<div class="statement">
+  Услуги оказаны в полном объёме и в срок. Заказчик претензий по объёму,
+  качеству и срокам оказания услуг не имеет.
+</div>
+
+<div class="signatures">
+  <div class="sig">
+    <strong>Исполнитель</strong>
+    <div class="line">подпись / расшифровка</div>
+  </div>
+  <div class="sig">
+    <strong>Заказчик</strong>
+    <div class="line">подпись / расшифровка</div>
+  </div>
+</div>
+
+<div class="footer">
+  Сформировано автоматически системой CRM
+</div>
+
+</body>
+</html>

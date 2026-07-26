@@ -51,6 +51,13 @@ class Case(models.Model):
     description = models.TextField(blank=True, verbose_name='Описание')
     court_name = models.CharField(max_length=255, blank=True, verbose_name='Суд')
     court_case_number = models.CharField(max_length=100, blank=True, verbose_name='Номер дела в суде')
+    opposing_party = models.CharField(
+        max_length=255, blank=True, verbose_name='Противоположная сторона',
+        help_text='ФИО или название организации — для проверки конфликта интересов',
+    )
+    opposing_party_inn = models.CharField(
+        max_length=20, blank=True, verbose_name='ИНН противоположной стороны',
+    )
 
     assigned_lawyers = models.ManyToManyField(
         settings.AUTH_USER_MODEL,

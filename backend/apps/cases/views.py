@@ -209,6 +209,46 @@ class CaseNoteDetailView(generics.DestroyAPIView):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def conflict_check_view(request):
+    """Проверка конфликта интересов по ФИО/названию и/или ИНН.
+
+    Ищет совпадения в обе стороны: среди наших клиентов (не судимся ли мы
+    со своим клиентом) и среди противоположных сторон существующих дел
+    (не заводим ли мы клиентом чьего-то оппонента). Поиск намеренно идёт
+    по ВСЕМ делам фирмы — в этом смысл проверки конфликта.
+    """
+    from apps.clients.models import Client
+
+    name = (request.query_params.get('name') or '').strip()
+    inn = (request.query_params.get('inn') or '').strip()
+    if len(name) < 3 and not inn:
+        return Response({'client_matches': [], 'opposing_matches': []})
+
+    clients_q = Q(pk__in=[])
+    cases_q = Q(pk__in=[])
+    if inn:
+        clients_q |= Q(tax_id=inn)
+        cases_q |= Q(opposing_party_inn=inn)
+    if len(name) >= 3:
+        clients_q |= (Q(last_name__icontains=name) | Q(company_name__icontains=name))
+        cases_q |= Q(opposing_party__icontains=name)
+
+    client_matches = [
+        {'uuid': str(c.uuid), 'display_name': c.display_name, 'tax_id': c.tax_id}
+        for c in Client.objects.filter(clients_q)[:10]
+    ]
+    opposing_matches = [
+        {
+            'uuid': str(c.uuid), 'case_number': c.case_number, 'title': c.title,
+            'opposing_party': c.opposing_party,
+        }
+        for c in Case.objects.filter(cases_q)[:10]
+    ]
+    return Response({'client_matches': client_matches, 'opposing_matches': opposing_matches})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def case_stats_view(request):
     qs = Case.objects.all()
     if request.user.is_lawyer:

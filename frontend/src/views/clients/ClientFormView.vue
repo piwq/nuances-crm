@@ -17,7 +17,7 @@
           <template v-if="form.client_type === 'individual'">
             <v-row dense>
               <v-col cols="12" md="4">
-                <v-text-field v-model="form.last_name" label="Фамилия *" :rules="[required]" />
+                <v-text-field v-model="form.last_name" label="Фамилия *" :rules="[required]" @blur="checkConflict" />
               </v-col>
               <v-col cols="12" md="4">
                 <v-text-field v-model="form.first_name" label="Имя" />
@@ -31,7 +31,7 @@
                 <v-text-field v-model="form.passport_number" label="Паспорт" />
               </v-col>
               <v-col cols="12" md="4">
-                <v-text-field v-model="form.tax_id" label="ИНН" />
+                <v-text-field v-model="form.tax_id" label="ИНН" @blur="checkConflict" />
               </v-col>
               <v-col cols="12" md="4">
                 <v-text-field v-model="form.date_of_birth" label="Дата рождения" type="date" />
@@ -43,17 +43,31 @@
           <template v-else-if="form.client_type === 'legal_entity'">
             <v-row dense>
               <v-col cols="12" md="6">
-                <v-text-field v-model="form.company_name" label="Название компании *" :rules="[required]" />
+                <v-text-field v-model="form.company_name" label="Название компании *" :rules="[required]" @blur="checkConflict" />
               </v-col>
               <v-col cols="12" md="3">
                 <v-text-field v-model="form.registration_number" label="ОГРН" />
               </v-col>
               <v-col cols="12" md="3">
-                <v-text-field v-model="form.tax_id" label="ИНН" />
+                <v-text-field v-model="form.tax_id" label="ИНН" @blur="checkConflict" />
               </v-col>
             </v-row>
             <v-textarea v-model="form.legal_address" label="Юридический адрес" rows="2" />
           </template>
+
+          <v-alert
+            v-if="conflictHits.length"
+            type="warning"
+            variant="tonal"
+            density="comfortable"
+            icon="mdi-alert-octagon"
+            class="mb-4"
+          >
+            <strong>Возможный конфликт интересов!</strong> Это лицо — противоположная сторона в делах:
+            <div v-for="hit in conflictHits" :key="hit.uuid">
+              • {{ hit.case_number }}: {{ hit.title }} (оппонент: {{ hit.opposing_party }})
+            </div>
+          </v-alert>
 
           <v-divider class="my-4" />
 
@@ -87,6 +101,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useClientsStore } from '@/stores/clients'
 import { useNotification } from '@/composables/useNotification'
 import PageHeader from '@/components/common/PageHeader.vue'
+import api from '@/plugins/axios'
 
 const router = useRouter()
 const route = useRoute()
@@ -105,6 +120,23 @@ const form = ref({
   company_name: '', registration_number: '', legal_address: '',
   email: '', phone: '', address: '', notes: '',
 })
+
+const conflictHits = ref([])
+
+async function checkConflict() {
+  const name = (form.value.client_type === 'individual' ? form.value.last_name : form.value.company_name || '').trim()
+  const inn = (form.value.tax_id || '').trim()
+  if (name.length < 3 && !inn) {
+    conflictHits.value = []
+    return
+  }
+  try {
+    const { data } = await api.get('/api/v1/conflict-check/', { params: { name, inn } })
+    conflictHits.value = data.opposing_matches
+  } catch {
+    // проверка не критична, молча пропускаем
+  }
+}
 
 onMounted(async () => {
   if (isEdit.value) {

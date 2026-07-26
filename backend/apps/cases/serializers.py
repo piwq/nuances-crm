@@ -18,6 +18,7 @@ class CaseSerializer(serializers.ModelSerializer):
             'id', 'uuid', 'title', 'case_number', 'client', 'client_detail',
             'status', 'category', 'description',
             'court_name', 'court_case_number',
+            'opposing_party', 'opposing_party_inn',
             'assigned_lawyers', 'assigned_lawyers_detail',
             'lead_lawyer', 'lead_lawyer_detail',
             'opened_at', 'closed_at', 'expected_close_date',
