@@ -1,8 +1,11 @@
+# Явное имя проекта, отличное от dev (nuances-crm): иначе запуск этого файла
+# пересоздаёт dev-контейнеры и подменяет тома.
+name: nuances-crm-demo
 
 services:
   db:
     image: postgres:16-alpine
-    restart: "no"
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-legal_crm}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -21,7 +24,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    restart: "no"
+    restart: unless-stopped
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
@@ -47,7 +50,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    restart: "no"
+    restart: unless-stopped
     # send_deadline_reminders идемпотентна (дедуп по Notification.key),
     # поэтому часовой цикл безопасен
     command: sh -c 'while true; do python manage.py send_deadline_reminders; sleep 3600; done'
@@ -66,7 +69,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    restart: "no"
+    restart: unless-stopped
     networks:
       - backend_net
 
@@ -79,18 +82,19 @@ services:
         # того же origin. Намеренно не берём значение из .env (там адрес для
         # dev-режима с отдельным backend на :8000).
         VITE_API_BASE_URL: ""
-    restart: "no"
+    restart: unless-stopped
     networks:
       - frontend_net
 
   nginx:
     image: nginx:1.25-alpine
-    restart: "no"
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - static_files:/app/staticfiles:ro
+      - media_files:/app/media:ro
     depends_on:
       - backend
       - frontend
