@@ -1,18 +1,25 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.exceptions import TokenError
 
 from common.permissions import IsAdmin
 from .models import CustomUser
-from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer, MeUpdateSerializer
+from .serializers import (
+    UserSerializer, UserPublicSerializer, UserCreateSerializer,
+    UserUpdateSerializer, MeUpdateSerializer,
+)
 
 
 class LoginView(TokenObtainPairView):
-    pass
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
 
 class TokenRefreshViewCustom(TokenRefreshView):
@@ -72,8 +79,10 @@ def change_password_view(request):
     new_password = request.data.get('new_password', '')
     if not request.user.check_password(current):
         return Response({'detail': 'Неверный текущий пароль.'}, status=status.HTTP_400_BAD_REQUEST)
-    if len(new_password) < 8:
-        return Response({'detail': 'Новый пароль должен содержать минимум 8 символов.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        validate_password(new_password, user=request.user)
+    except DjangoValidationError as e:
+        return Response({'detail': ' '.join(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
     request.user.set_password(new_password)
     request.user.save(update_fields=['password'])
     return Response({'detail': 'Пароль изменён.'})
@@ -83,4 +92,4 @@ def change_password_view(request):
 @permission_classes([IsAuthenticated])
 def lawyers_list_view(request):
     lawyers = CustomUser.objects.filter(role=CustomUser.ROLE_LAWYER, is_active=True).order_by('last_name')
-    return Response(UserSerializer(lawyers, many=True).data)
+    return Response(UserPublicSerializer(lawyers, many=True, context={'request': request}).data)

@@ -129,7 +129,7 @@ import { useNotification } from '@/composables/useNotification'
 import api from '@/plugins/axios'
 
 const auth = useAuthStore()
-const { showNotification } = useNotification()
+const { notify: showNotification } = useNotification()
 
 const lawyers = ref([])
 const activeLawyer = ref(null)

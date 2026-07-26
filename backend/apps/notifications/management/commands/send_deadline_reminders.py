@@ -18,6 +18,14 @@ EVENT_THRESHOLDS = [1]
 CASE_DEADLINE_THRESHOLDS = [1, 3, 7]   # процессуальные сроки — предупреждаем раньше
 
 
+def _days_word(days):
+    if days % 10 == 1 and days % 100 != 11:
+        return 'день'
+    if days % 10 in (2, 3, 4) and days % 100 not in (12, 13, 14):
+        return 'дня'
+    return 'дней'
+
+
 class Command(BaseCommand):
     help = 'Send reminder notifications for upcoming task and event deadlines'
 
@@ -36,7 +44,7 @@ class Command(BaseCommand):
             target = today + timedelta(days=days)
             for task in active_tasks.filter(due_date=target):
                 key = f'task_{task.id}_due_{days}d'
-                body = f'До срока осталось {days} {"день" if days == 1 else "дня"}'
+                body = f'До срока осталось {days} {_days_word(days)}'
                 if task.case_id:
                     body += f' · дело: {task.case.title}'
                 link = f'/cases/{task.case.uuid}' if task.case_id else '/tasks'

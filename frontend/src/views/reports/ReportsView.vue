@@ -146,7 +146,10 @@ import { formatCurrency, formatHours } from '@/utils/formatters'
 import { CASE_STATUSES, INVOICE_STATUSES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
+import { useNotification } from '@/composables/useNotification'
 import api from '@/plugins/axios'
+
+const { error } = useNotification()
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
 
@@ -215,7 +218,7 @@ async function load() {
     const { data: d } = await api.get('/api/v1/billing/reports/', { params: { months: months.value } })
     data.value = d
   } catch {
-    // silent
+    error('Не удалось загрузить отчёт')
   } finally {
     loading.value = false
   }

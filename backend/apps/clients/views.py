@@ -57,11 +57,12 @@ class ClientDetailView(generics.RetrieveUpdateDestroyAPIView):
 def client_cases_view(request, uuid):
     from apps.cases.models import Case
     from apps.cases.serializers import CaseListSerializer
+    from common.scoping import scope_cases
     try:
         client = Client.objects.get(uuid=uuid)
     except Client.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
-    cases = Case.objects.filter(client=client).order_by('-created_at')
+    cases = scope_cases(Case.objects.filter(client=client), request.user).order_by('-created_at')
     return Response(CaseListSerializer(cases, many=True, context={'request': request}).data)
 
 

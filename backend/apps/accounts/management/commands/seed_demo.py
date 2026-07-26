@@ -477,7 +477,7 @@ class Command(BaseCommand):
             Notification.objects.create(
                 user=user, title='Приближается дедлайн',
                 body=f'Через 2 дня срок по делу «{case.title}».',
-                link=f'/cases/{case.id}', is_read=False,
+                link=f'/cases/{case.uuid}', is_read=False,
             )
             Notification.objects.create(
                 user=user, title='Назначена новая задача',

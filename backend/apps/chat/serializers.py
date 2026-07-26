@@ -1,10 +1,10 @@
 from rest_framework import serializers
 from .models import ChatMessage
-from apps.accounts.serializers import UserSerializer
+from apps.accounts.serializers import UserPublicSerializer
 
 class ChatMessageSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    recipient = UserSerializer(read_only=True)
+    user = UserPublicSerializer(read_only=True)
+    recipient = UserPublicSerializer(read_only=True)
 
     class Meta:
         model = ChatMessage

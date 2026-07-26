@@ -355,14 +355,18 @@ onMounted(async () => {
   statsLoading.value = true
   const today = format(startOfToday(), "yyyy-MM-dd'T'HH:mm:ss")
   const future = format(addDays(new Date(), 30), "yyyy-MM-dd'T'HH:mm:ss")
-  await Promise.all([
-    casesStore.fetchStats().then(d => caseStats.value = d),
-    tasksStore.fetchTasks({ page_size: 50, status: 'todo,in_progress' }),
-    eventsStore.fetchEvents(today, future),
-    api.get('/api/v1/billing/monthly-stats/').then(r => monthlyBilling.value = r.data),
-    loadDeadlines(),
-    loadActivity(),
-  ])
-  statsLoading.value = false
+  try {
+    // allSettled: отказ одного запроса не должен вешать весь дашборд
+    await Promise.allSettled([
+      casesStore.fetchStats().then(d => caseStats.value = d),
+      tasksStore.fetchTasks({ page_size: 50, status: 'todo,in_progress' }),
+      eventsStore.fetchEvents(today, future),
+      api.get('/api/v1/billing/monthly-stats/').then(r => monthlyBilling.value = r.data),
+      loadDeadlines(),
+      loadActivity(),
+    ])
+  } finally {
+    statsLoading.value = false
+  }
 })
 </script>

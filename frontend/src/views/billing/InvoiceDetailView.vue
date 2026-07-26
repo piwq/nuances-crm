@@ -67,7 +67,7 @@
             <v-row class="mb-1">
               <v-col cols="6" class="text-caption text-medium-emphasis">Дело</v-col>
               <v-col cols="6">
-                <router-link :to="`/cases/${invoice.case}`" class="text-primary text-decoration-none">
+                <router-link :to="`/cases/${invoice.case_uuid}`" class="text-primary text-decoration-none">
                   {{ invoice.case_title }}
                 </router-link>
               </v-col>

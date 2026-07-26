@@ -31,9 +31,9 @@ export const useDocumentsStore = defineStore('documents', () => {
     return data
   }
 
-  async function deleteDocument(id) {
-    await api.delete(`/api/v1/documents/${id}/`)
-    documents.value = documents.value.filter(d => d.id !== id)
+  async function deleteDocument(uuid) {
+    await api.delete(`/api/v1/documents/${uuid}/`)
+    documents.value = documents.value.filter(d => d.uuid !== uuid)
   }
 
   async function downloadDocument(id, filename) {

@@ -9,6 +9,7 @@ from .serializers import NotificationSerializer
 
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
+    filter_backends = []  # queryset нарезан — глобальный OrderingFilter уронит его
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)[:50]

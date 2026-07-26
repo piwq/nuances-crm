@@ -29,7 +29,7 @@
             draggable="true"
             @dragstart="onDragStart($event, c)"
           >
-            <router-link :to="`/cases/${c.id}`" class="text-body-2 font-weight-medium text-primary text-decoration-none d-block mb-1">
+            <router-link :to="`/cases/${c.uuid}`" class="text-body-2 font-weight-medium text-primary text-decoration-none d-block mb-1">
               {{ c.title }}
             </router-link>
             <div class="text-caption text-medium-emphasis mb-1">{{ c.case_number }}</div>

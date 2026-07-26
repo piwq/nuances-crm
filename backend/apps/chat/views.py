@@ -14,23 +14,23 @@ def lawyers_list_view(request):
     including unread message counts for each.
     """
     from apps.accounts.models import CustomUser
-    from apps.accounts.serializers import UserSerializer
+    from apps.accounts.serializers import UserPublicSerializer
     from django.db.models import Count, Q
-    
+
     lawyers = CustomUser.objects.filter(role=CustomUser.ROLE_LAWYER).exclude(id=request.user.id)
-    
+
     # Annotate with unread counts
     # messages where recipient is current user, sender is the lawyer, and is_read is False
     unread_counts = ChatMessage.objects.filter(
         recipient=request.user,
         is_read=False
     ).values('user_id').annotate(count=Count('id'))
-    
+
     unread_map = {item['user_id']: item['count'] for item in unread_counts}
-    
+
     data = []
     for lawyer in lawyers:
-        serializer = UserSerializer(lawyer, context={'request': request})
+        serializer = UserPublicSerializer(lawyer, context={'request': request})
         lawyer_data = serializer.data
         lawyer_data['unread_count'] = unread_map.get(lawyer.id, 0)
         data.append(lawyer_data)

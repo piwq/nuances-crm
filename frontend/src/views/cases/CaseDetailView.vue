@@ -3,7 +3,7 @@
     <page-header :title="caseItem.title" :subtitle="caseItem.case_number">
       <template #default>
         <div class="d-flex align-center gap-2 flex-wrap">
-          <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.id}/edit`">
+          <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.uuid}/edit`">
             Редактировать
           </v-btn>
           <v-menu>
@@ -81,7 +81,7 @@
             </v-card>
           </v-col>
           <v-col cols="12" md="4">
-            <v-card class="mb-4" :to="`/clients/${caseItem.client}`">
+            <v-card class="mb-4" :to="caseItem.client_detail ? `/clients/${caseItem.client_detail.uuid}` : undefined">
               <v-card-title>Клиент</v-card-title>
               <v-card-text v-if="caseItem.client_detail">
                 <div class="text-h6 text-primary">{{ caseItem.client_detail.display_name }}</div>
@@ -123,13 +123,13 @@
             </div>
           </v-card-title>
           <v-list v-if="documentsStore.documents.length">
-            <v-list-item v-for="doc in documentsStore.documents" :key="doc.id" :title="doc.name" :subtitle="formatDate(doc.created_at)">
+            <v-list-item v-for="doc in documentsStore.documents" :key="doc.id" :title="doc.title" :subtitle="formatDate(doc.uploaded_at)">
               <template #prepend>
-                <v-icon :icon="fileIcon(doc.name)" class="mr-3" />
+                <v-icon :icon="fileIcon(doc.file)" class="mr-3" />
               </template>
               <template #append>
-                <v-btn icon="mdi-download" variant="text" size="small" @click="documentsStore.downloadDocument(doc.id, doc.name)" />
-                <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteDoc(doc.id)" />
+                <v-btn icon="mdi-download" variant="text" size="small" @click="documentsStore.downloadDocument(doc.uuid, doc.title)" />
+                <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteDoc(doc.uuid)" />
               </template>
             </v-list-item>
           </v-list>
@@ -305,8 +305,23 @@
       <v-card>
         <v-card-title>Загрузить документ</v-card-title>
         <v-card-text>
-          <v-file-input v-model="newFile" label="Выберите файл" prepend-icon="mdi-file-upload" show-size border @update:model-value="handleUpload" />
+          <v-file-input v-model="newFile" label="Выберите файл" prepend-icon="mdi-file-upload" show-size border @update:model-value="onFilePicked" />
+          <v-text-field v-model="newTitle" label="Название" class="mt-3" />
+          <v-select
+            v-model="newDocType"
+            :items="DOCUMENT_TYPES"
+            item-title="label"
+            item-value="value"
+            label="Тип документа"
+          />
         </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="docDialog = false">Отмена</v-btn>
+          <v-btn color="primary" :loading="uploading" :disabled="!pickedFile || !newTitle.trim()" @click="handleUpload">
+            Загрузить
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </div>
@@ -323,7 +338,7 @@ import { useDocumentsStore } from '@/stores/documents'
 import { useTasksStore } from '@/stores/tasks'
 import { useBillingStore } from '@/stores/billing'
 import { formatDate, formatDateTime } from '@/utils/formatters'
-import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE_STATUSES } from '@/utils/constants'
+import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE_STATUSES, DOCUMENT_TYPES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useNotification } from '@/composables/useNotification'
@@ -342,6 +357,8 @@ const statusChanging = ref(false)
 const tab = ref('info')
 const docDialog = ref(false)
 const newFile = ref(null)
+const newTitle = ref('')
+const newDocType = ref('other')
 const isDragOver = ref(false)
 const uploading = ref(false)
 const templateDialog = ref(false)
@@ -379,12 +396,14 @@ const totalHours = computed(() => billingStore.timeEntries.filter(e => e.case ==
 async function fetchData() {
   loading.value = true
   try {
+    // в маршруте — uuid дела; фильтры связанных сущностей работают по int-id (FK)
     caseItem.value = await casesStore.fetchCase(route.params.id)
+    const caseId = caseItem.value.id
     await Promise.all([
-      documentsStore.fetchDocuments(route.params.id),
-      tasksStore.fetchTasks({ case: route.params.id, page_size: 100 }),
-      billingStore.fetchTimeEntries({ case: route.params.id, page_size: 100 }),
-      billingStore.fetchInvoices({ case: route.params.id, page_size: 50 }),
+      documentsStore.fetchDocuments(caseId),
+      tasksStore.fetchTasks({ case: caseId, page_size: 100 }),
+      billingStore.fetchTimeEntries({ case: caseId, page_size: 100 }),
+      billingStore.fetchInvoices({ case: caseId, page_size: 50 }),
     ])
   } catch (e) {
     error('Ошибка загрузки данных')
@@ -393,22 +412,38 @@ async function fetchData() {
   }
 }
 
-async function uploadFile(file) {
+function pickedFileOf(model) {
+  // v-file-input отдаёт File или File[] в зависимости от версии Vuetify
+  return Array.isArray(model) ? model[0] : model
+}
+
+const pickedFile = computed(() => pickedFileOf(newFile.value))
+
+function onFilePicked() {
+  const file = pickedFileOf(newFile.value)
+  if (file && !newTitle.value.trim()) newTitle.value = file.name
+}
+
+async function uploadFile(file, title, docType) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('case', caseItem.value.id)
-  formData.append('name', file.name)
+  formData.append('title', title || file.name)
+  formData.append('document_type', docType || 'other')
   await documentsStore.uploadDocument(caseItem.value.id, formData)
 }
 
 async function handleUpload() {
-  if (!newFile.value) return
+  const file = pickedFileOf(newFile.value)
+  if (!file) return
   uploading.value = true
   try {
-    await uploadFile(newFile.value[0])
+    await uploadFile(file, newTitle.value.trim(), newDocType.value)
     success('Документ загружен')
     docDialog.value = false
     newFile.value = null
+    newTitle.value = ''
+    newDocType.value = 'other'
   } catch (e) {
     error('Ошибка загрузки')
   } finally {
@@ -455,7 +490,7 @@ async function onFileDrop(event) {
   if (!files.length) return
   uploading.value = true
   try {
-    await Promise.all(files.map(uploadFile))
+    await Promise.all(files.map(f => uploadFile(f)))
     success(`Загружено файлов: ${files.length}`)
   } catch (e) {
     error('Ошибка загрузки')
@@ -473,10 +508,10 @@ function fileIcon(name) {
   return 'mdi-file-document-outline'
 }
 
-async function deleteDoc(id) {
+async function deleteDoc(uuid) {
   if (!confirm('Удалить документ?')) return
   try {
-    await documentsStore.deleteDocument(id)
+    await documentsStore.deleteDocument(uuid)
     success('Документ удален')
   } catch (e) {
     error('Ошибка удаления')

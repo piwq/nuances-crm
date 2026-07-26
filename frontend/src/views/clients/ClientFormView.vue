@@ -125,7 +125,7 @@ async function handleSubmit() {
     } else {
       const created = await store.createClient(form.value)
       success('Клиент создан')
-      router.push(`/clients/${created.id}`)
+      router.push(`/clients/${created.uuid}`)
     }
   } catch (e) {
     const msg = e.response?.data

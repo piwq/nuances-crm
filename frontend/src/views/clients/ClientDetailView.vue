@@ -1,7 +1,7 @@
 <template>
   <div v-if="client">
     <page-header :title="client.display_name" :subtitle="client.client_type === 'individual' ? 'Физическое лицо' : 'Юридическое лицо'">
-      <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/clients/${client.id}/edit`">Редактировать</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/clients/${client.uuid}/edit`">Редактировать</v-btn>
     </page-header>
 
     <v-row>
@@ -62,7 +62,7 @@
             <v-list-item
               v-for="c in cases"
               :key="c.id"
-              :to="`/cases/${c.id}`"
+              :to="`/cases/${c.uuid}`"
               :subtitle="`${formatDate(c.opened_at)} · ${c.category}`"
             >
               <template #title>

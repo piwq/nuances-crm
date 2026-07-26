@@ -172,6 +172,9 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'common.pagination.StandardPagination',
     'PAGE_SIZE': 25,
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '10/min',  # защита /auth/login/ от перебора
+    },
 }
 
 from datetime import timedelta

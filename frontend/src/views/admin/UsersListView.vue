@@ -15,7 +15,6 @@
               prepend-inner-icon="mdi-magnify"
               clearable
               hide-details
-              @update:model-value="debouncedFetch"
             />
           </v-col>
           <v-col cols="6" md="2">
@@ -49,10 +48,10 @@
     <v-card>
       <v-data-table
         :headers="headers"
-        :items="users"
+        :items="filteredUsers"
         :loading="loading"
         :search="search"
-        items-per-page="25"
+        :items-per-page="25"
       >
         <template #item.full_name="{ item }">
           <div class="d-flex align-center gap-3 py-1">
@@ -171,7 +170,6 @@ const loading = ref(false)
 const search = ref('')
 const filterRole = ref('')
 const filterActive = ref('')
-let searchTimeout = null
 
 const formRef = ref(null)
 const saving = ref(false)
@@ -214,18 +212,13 @@ function initials(user) {
 async function fetchData() {
   loading.value = true
   try {
-    const { data } = await api.get('/api/v1/users/')
+    const { data } = await api.get('/api/v1/users/', { params: { page_size: 100 } })
     users.value = data.results || data
   } catch {
     error('Ошибка загрузки пользователей')
   } finally {
     loading.value = false
   }
-}
-
-function debouncedFetch() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(fetchData, 300)
 }
 
 function openDialog(user = null) {

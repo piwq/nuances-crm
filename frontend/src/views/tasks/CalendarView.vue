@@ -171,7 +171,9 @@ function toISO(date, time, allDay) {
 function fromISO(isoStr) {
   if (!isoStr) return { date: '', time: '' }
   const d = new Date(isoStr)
-  const date = d.toISOString().slice(0, 10)
+  // дата и время — из локальных компонентов; toISOString() давал UTC-дату
+  // и сдвигал событие на сутки назад при редактировании
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   return { date, time }
 }

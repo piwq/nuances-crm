@@ -3,10 +3,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 
 from common.utils import log_activity
 
 from common.permissions import IsAdmin, IsLawyerAssignedToCase
+from common.scoping import scope_cases, scope_by_case
 from .models import Case, CaseNote
 from .serializers import CaseSerializer, CaseListSerializer, CaseNoteSerializer
 from .filters import CaseFilter
@@ -170,17 +172,27 @@ class CaseNoteListCreateView(generics.ListCreateAPIView):
     serializer_class = CaseNoteSerializer
 
     def get_queryset(self):
-        return CaseNote.objects.filter(case_id=self.kwargs['case_pk']).select_related('author')
+        return scope_by_case(
+            CaseNote.objects.filter(case_id=self.kwargs['case_pk']).select_related('author'),
+            self.request.user,
+        )
 
     def perform_create(self, serializer):
-        serializer.save(case_id=self.kwargs['case_pk'])
+        case = get_object_or_404(
+            scope_cases(Case.objects.all(), self.request.user),
+            pk=self.kwargs['case_pk'],
+        )
+        serializer.save(case=case)
 
 
 class CaseNoteDetailView(generics.DestroyAPIView):
     serializer_class = CaseNoteSerializer
 
     def get_queryset(self):
-        return CaseNote.objects.filter(case_id=self.kwargs['case_pk'])
+        return scope_by_case(
+            CaseNote.objects.filter(case_id=self.kwargs['case_pk']),
+            self.request.user,
+        )
 
 
 @api_view(['GET'])

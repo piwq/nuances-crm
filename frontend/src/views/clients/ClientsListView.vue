@@ -45,7 +45,7 @@
         @update:options="onTableUpdate"
       >
         <template #item.display_name="{ item }">
-          <router-link :to="`/clients/${item.id}`" class="text-primary font-weight-medium text-decoration-none">
+          <router-link :to="`/clients/${item.uuid}`" class="text-primary font-weight-medium text-decoration-none">
             {{ item.display_name }}
           </router-link>
         </template>
@@ -61,7 +61,7 @@
           {{ formatDate(item.created_at) }}
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" size="small" variant="text" :to="`/clients/${item.id}/edit`" />
+          <v-btn icon="mdi-pencil" size="small" variant="text" :to="`/clients/${item.uuid}/edit`" />
         </template>
       </v-data-table-server>
     </v-card>

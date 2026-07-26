@@ -32,7 +32,7 @@
         @update:options="onTableUpdate"
       >
         <template #item.title="{ item }">
-          <router-link :to="`/cases/${item.id}`" class="text-primary font-weight-medium text-decoration-none">
+          <router-link :to="`/cases/${item.uuid}`" class="text-primary font-weight-medium text-decoration-none">
             {{ item.title }}
           </router-link>
           <div class="text-caption text-medium-emphasis">{{ item.case_number }}</div>

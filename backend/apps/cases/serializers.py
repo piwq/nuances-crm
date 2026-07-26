@@ -1,12 +1,12 @@
 from rest_framework import serializers
-from apps.accounts.serializers import UserSerializer
+from apps.accounts.serializers import UserPublicSerializer
 from apps.clients.serializers import ClientListSerializer
 from .models import Case, CaseNote
 
 
 class CaseSerializer(serializers.ModelSerializer):
-    assigned_lawyers_detail = UserSerializer(source='assigned_lawyers', many=True, read_only=True)
-    lead_lawyer_detail = UserSerializer(source='lead_lawyer', read_only=True)
+    assigned_lawyers_detail = UserPublicSerializer(source='assigned_lawyers', many=True, read_only=True)
+    lead_lawyer_detail = UserPublicSerializer(source='lead_lawyer', read_only=True)
     client_detail = ClientListSerializer(source='client', read_only=True)
     documents_count = serializers.SerializerMethodField()
     tasks_count = serializers.SerializerMethodField()

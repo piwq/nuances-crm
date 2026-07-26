@@ -8,6 +8,7 @@ import django_filters
 
 from common.utils import serve_file_response
 from common.permissions import IsAdmin
+from common.scoping import scope_by_case
 from .models import Document, DocumentTemplate
 from .serializers import DocumentSerializer, DocumentTemplateSerializer
 
@@ -35,14 +36,14 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
 
 class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Document.objects.all()
     serializer_class = DocumentSerializer
     lookup_field = 'uuid'
 
-    def get_permissions(self):
-        if self.request.method == 'DELETE':
-            return [IsAuthenticated()]
-        return [IsAuthenticated()]
+    def get_queryset(self):
+        return scope_by_case(
+            Document.objects.select_related('uploaded_by', 'case'),
+            self.request.user,
+        )
 
     def perform_update(self, serializer):
         instance = serializer.save()

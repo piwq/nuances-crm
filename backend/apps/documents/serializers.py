@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from common.scoping import user_can_access_case
 from .models import Document, DocumentTemplate
 
 
@@ -27,6 +28,12 @@ class DocumentSerializer(serializers.ModelSerializer):
                 return f'{size:.1f} {unit}'
             size /= 1024
         return f'{size:.1f} ТБ'
+
+    def validate_case(self, case):
+        request = self.context.get('request')
+        if request and not user_can_access_case(request.user, case):
+            raise serializers.ValidationError('Дело недоступно.')
+        return case
 
     def create(self, validated_data):
         validated_data['uploaded_by'] = self.context['request'].user

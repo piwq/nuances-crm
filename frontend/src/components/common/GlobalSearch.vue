@@ -60,7 +60,7 @@
                 :subtitle="client.email || client.phone || ''"
                 prepend-icon="mdi-account"
                 density="compact"
-                @click="navigate(`/clients/${client.id}`)"
+                @click="navigate(`/clients/${client.uuid}`)"
               />
             </div>
 
@@ -74,7 +74,7 @@
                 :subtitle="c.case_number"
                 prepend-icon="mdi-briefcase-outline"
                 density="compact"
-                @click="navigate(`/cases/${c.id}`)"
+                @click="navigate(`/cases/${c.uuid}`)"
               />
             </div>
 

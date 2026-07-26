@@ -6,10 +6,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, F, DecimalField
 from django.db.models.functions import TruncMonth
 
 from common.permissions import IsAdmin
+from common.scoping import scope_by_case
 from .models import TimeEntry, Invoice, InvoiceItem
 from .serializers import (
     TimeEntrySerializer, InvoiceSerializer, InvoiceListSerializer, InvoiceItemSerializer
@@ -40,8 +41,13 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
 
 
 class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = TimeEntry.objects.all()
     serializer_class = TimeEntrySerializer
+
+    def get_queryset(self):
+        qs = TimeEntry.objects.select_related('case', 'lawyer')
+        if self.request.user.is_lawyer:
+            qs = qs.filter(lawyer=self.request.user)
+        return qs
 
 
 @api_view(['GET'])
@@ -97,7 +103,11 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
 
 
 class InvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Invoice.objects.prefetch_related('items', 'time_entries')
+    def get_queryset(self):
+        return scope_by_case(
+            Invoice.objects.prefetch_related('items', 'time_entries'),
+            self.request.user,
+        )
 
     def get_serializer_class(self):
         return InvoiceSerializer
@@ -108,13 +118,20 @@ class InvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
         return [IsAuthenticated()]
 
 
+def _get_invoice_or_none(request, pk, qs=None):
+    """Счёт по pk с учётом доступа юриста к делу; None, если нет или чужой."""
+    try:
+        return scope_by_case(qs or Invoice.objects.all(), request.user).get(pk=pk)
+    except Invoice.DoesNotExist:
+        return None
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_from_entries_view(request, pk):
     """Auto-create InvoiceItems from unbilled time entries of the invoice's case."""
-    try:
-        invoice = Invoice.objects.get(pk=pk)
-    except Invoice.DoesNotExist:
+    invoice = _get_invoice_or_none(request, pk)
+    if invoice is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if invoice.status != Invoice.STATUS_DRAFT:
@@ -145,9 +162,8 @@ def generate_from_entries_view(request, pk):
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def mark_sent_view(request, pk):
-    try:
-        invoice = Invoice.objects.get(pk=pk)
-    except Invoice.DoesNotExist:
+    invoice = _get_invoice_or_none(request, pk)
+    if invoice is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
     invoice.status = Invoice.STATUS_SENT
     invoice.save(update_fields=['status'])
@@ -157,9 +173,8 @@ def mark_sent_view(request, pk):
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def mark_paid_view(request, pk):
-    try:
-        invoice = Invoice.objects.get(pk=pk)
-    except Invoice.DoesNotExist:
+    invoice = _get_invoice_or_none(request, pk)
+    if invoice is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
     invoice.status = Invoice.STATUS_PAID
     invoice.paid_date = request.data.get('paid_date') or date.today()
@@ -170,15 +185,24 @@ def mark_paid_view(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def billing_monthly_stats_view(request):
-    months = int(request.query_params.get('months', 6))
+    try:
+        months = int(request.query_params.get('months', 6))
+    except (TypeError, ValueError):
+        return Response({'detail': 'Параметр months должен быть целым числом.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    months = max(1, min(months, 24))
     qs = TimeEntry.objects.filter(is_billable=True)
     if request.user.is_lawyer:
         qs = qs.filter(lawyer=request.user)
     rows = (
         qs.annotate(month=TruncMonth('date'))
         .values('month')
-        .annotate(total_hours=Sum('hours'), total_amount=Sum('amount'))
-        .order_by('month')
+        .annotate(
+            total_hours=Sum('hours'),
+            total_amount=Sum(F('hours') * F('hourly_rate'),
+                             output_field=DecimalField(max_digits=14, decimal_places=2)),
+        )
+        .order_by('-month')[:months]
     )
     return Response([
         {
@@ -186,7 +210,7 @@ def billing_monthly_stats_view(request):
             'total_hours': float(r['total_hours'] or 0),
             'total_amount': float(r['total_amount'] or 0),
         }
-        for r in rows[-months:]
+        for r in reversed(list(rows))
     ])
 
 
@@ -194,7 +218,8 @@ class InvoiceItemListCreateView(generics.ListCreateAPIView):
     serializer_class = InvoiceItemSerializer
 
     def get_queryset(self):
-        return InvoiceItem.objects.filter(invoice_id=self.request.query_params.get('invoice'))
+        qs = InvoiceItem.objects.filter(invoice_id=self.request.query_params.get('invoice'))
+        return scope_by_case(qs, self.request.user, case_field='invoice__case')
 
     def perform_create(self, serializer):
         item = serializer.save()
@@ -202,8 +227,11 @@ class InvoiceItemListCreateView(generics.ListCreateAPIView):
 
 
 class InvoiceItemDetailView(generics.RetrieveDestroyAPIView):
-    queryset = InvoiceItem.objects.all()
     serializer_class = InvoiceItemSerializer
+
+    def get_queryset(self):
+        return scope_by_case(InvoiceItem.objects.all(), self.request.user,
+                             case_field='invoice__case')
 
     def perform_destroy(self, instance):
         invoice = instance.invoice
@@ -258,9 +286,9 @@ def invoices_csv_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def send_invoice_email_view(request, pk):
-    try:
-        invoice = Invoice.objects.prefetch_related('items').select_related('case', 'client').get(pk=pk)
-    except Invoice.DoesNotExist:
+    invoice = _get_invoice_or_none(
+        request, pk, Invoice.objects.prefetch_related('items').select_related('case', 'client'))
+    if invoice is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     recipient_email = request.data.get('email') or (invoice.client.email if invoice.client else '')
@@ -302,9 +330,9 @@ def send_invoice_email_view(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def invoice_pdf_view(request, pk):
-    try:
-        invoice = Invoice.objects.prefetch_related('items').select_related('case', 'client').get(pk=pk)
-    except Invoice.DoesNotExist:
+    invoice = _get_invoice_or_none(
+        request, pk, Invoice.objects.prefetch_related('items').select_related('case', 'client'))
+    if invoice is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     from django.template.loader import render_to_string

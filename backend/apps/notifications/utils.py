@@ -20,10 +20,12 @@ def _push_telegram(notification):
     chat_id = getattr(notification.user, 'telegram_chat_id', '')
     if not chat_id:
         return
+    from html import escape
     from .telegram import send_telegram_message
-    text = f'<b>{notification.title}</b>'
+    # parse_mode=HTML: без экранирования «&», «<» в названиях дел ломают отправку
+    text = f'<b>{escape(notification.title)}</b>'
     if notification.body:
-        text += f'\n{notification.body}'
+        text += f'\n{escape(notification.body)}'
     send_telegram_message(chat_id, text)
 
 

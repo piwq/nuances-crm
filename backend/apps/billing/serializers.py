@@ -1,5 +1,13 @@
 from rest_framework import serializers
+from common.scoping import user_can_access_case
 from .models import TimeEntry, Invoice, InvoiceItem
+
+
+def _check_case_access(serializer, case):
+    request = serializer.context.get('request')
+    if request and case and not user_can_access_case(request.user, case):
+        raise serializers.ValidationError('Дело недоступно.')
+    return case
 
 
 class TimeEntrySerializer(serializers.ModelSerializer):
@@ -26,6 +34,16 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     def get_is_invoiced(self, obj):
         return obj.invoice_id is not None
 
+    def validate_case(self, case):
+        return _check_case_access(self, case)
+
+    def validate(self, attrs):
+        # юрист пишет время только от своего имени; выбирать юриста может админ
+        request = self.context.get('request')
+        if request and request.user.is_lawyer:
+            attrs['lawyer'] = request.user
+        return attrs
+
     def create(self, validated_data):
         if 'lawyer' not in validated_data:
             validated_data['lawyer'] = self.context['request'].user
@@ -38,12 +56,17 @@ class TimeEntrySerializer(serializers.ModelSerializer):
 class InvoiceItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = InvoiceItem
-        fields = ['id', 'description', 'quantity', 'unit_price', 'amount', 'time_entry']
+        fields = ['id', 'invoice', 'description', 'quantity', 'unit_price', 'amount', 'time_entry']
         read_only_fields = ['amount']
+
+    def validate_invoice(self, invoice):
+        _check_case_access(self, invoice.case)
+        return invoice
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
     items = InvoiceItemSerializer(many=True, read_only=True)
+    case_uuid = serializers.UUIDField(source='case.uuid', read_only=True)
     client_name = serializers.SerializerMethodField()
     client_email = serializers.SerializerMethodField()
     case_title = serializers.SerializerMethodField()
@@ -52,7 +75,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = [
-            'id', 'invoice_number', 'case', 'case_title', 'client', 'client_name', 'client_email',
+            'id', 'invoice_number', 'case', 'case_uuid', 'case_title', 'client', 'client_name', 'client_email',
             'status', 'issue_date', 'due_date', 'paid_date',
             'subtotal', 'tax_rate', 'tax_amount', 'total',
             'notes', 'items', 'time_entries_count',
@@ -71,6 +94,9 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     def get_time_entries_count(self, obj):
         return obj.time_entries.count()
+
+    def validate_case(self, case):
+        return _check_case_access(self, case)
 
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user

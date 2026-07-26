@@ -133,7 +133,7 @@ import { useNotification } from '@/composables/useNotification'
 import api from '@/plugins/axios'
 
 const auth = useAuthStore()
-const { showNotification } = useNotification()
+const { notify: showNotification } = useNotification()
 
 const activeTab = ref('profile')
 const loading = ref(false)

@@ -178,7 +178,7 @@ async function fetchInitialData() {
   loadingLawyers.value = true
   try {
     const [clientsRes, lawyersRes] = await Promise.all([
-      api.get('/api/v1/clients/'),
+      api.get('/api/v1/clients/', { params: { page_size: 100 } }),
       api.get('/api/v1/users/lawyers/'),
     ])
     clients.value = clientsRes.data.results || clientsRes.data
@@ -228,7 +228,7 @@ async function handleSubmit() {
     } else {
       const created = await casesStore.createCase(form.value)
       success('Дело создано')
-      router.push(`/cases/${created.id}`)
+      router.push(`/cases/${created.uuid}`)
       return
     }
     router.push(`/cases/${route.params.id}`)

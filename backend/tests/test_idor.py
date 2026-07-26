@@ -46,20 +46,26 @@ class TestIDORSecurity:
         assert response.status_code == 200
         assert response.data['uuid'] == str(case_l1.uuid)
 
-    def test_lawyer_cannot_access_chat_history_of_unassigned_case(self, api_client, lawyers, case_l1):
-        _, l2 = lawyers
+    def test_chat_history_limited_to_own_conversations(self, api_client, lawyers):
+        from apps.chat.models import ChatMessage
+        l1, l2 = lawyers
+        l3 = CustomUser.objects.create_user(
+            username='lawyer3', email='lawyer3@test.com', password='password123',
+            role='lawyer', first_name='L3', last_name='Test')
+        ChatMessage.objects.create(user=l1, recipient=l2, text='для l2')
+        ChatMessage.objects.create(user=l1, recipient=l3, text='для l3')
         api_client.force_authenticate(user=l2)
-        url = f'/api/v1/chat/history/?case_id={case_l1.id}'
-        response = api_client.get(url)
-        # Even if they try to use integer ID in query params, results should be restricted
+        response = api_client.get(f'/api/v1/chat/history/?recipient_id={l1.id}')
         assert response.status_code == 200
-        assert len(response.data['results']) == 0
+        texts = [m['text'] for m in response.data['results']]
+        # l2 видит только свою переписку с l1, чужое сообщение l1→l3 не отдаётся
+        assert texts == ['для l2']
 
     def test_uuid_enumeration_prevention(self, api_client, lawyers):
         l1, _ = lawyers
         api_client.force_authenticate(user=l1)
         # Try a random UUID
         random_uuid = uuid.uuid4()
-        url = f'/api/v1/cases/cases/{random_uuid}/'
+        url = f'/api/v1/cases/{random_uuid}/'
         response = api_client.get(url)
         assert response.status_code == 404
