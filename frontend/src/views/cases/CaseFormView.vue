@@ -1,10 +1,10 @@
 <template>
-  <div>
+  <div class="form-page mx-auto">
     <page-header :title="isEdit ? 'Редактировать дело' : 'Новое дело'">
       <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="$router.back()">Назад</v-btn>
     </page-header>
 
-    <v-card max-width="900">
+    <v-card>
       <v-card-text>
         <v-form ref="formRef" @submit.prevent="handleSubmit">
           <v-row>
@@ -335,3 +335,9 @@ async function handleSubmit() {
   }
 }
 </script>
+
+<style scoped>
+.form-page {
+  max-width: 860px;
+}
+</style>
