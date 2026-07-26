@@ -307,8 +307,10 @@ def send_invoice_email_view(request, pk):
         html = render_to_string('billing/invoice_pdf.html', {'invoice': invoice})
         pdf = weasyprint.HTML(string=html).write_pdf()
         msg.attach(f'invoice_{invoice.invoice_number}.pdf', pdf, 'application/pdf')
-    except Exception:
-        pass  # send without attachment if PDF generation fails
+    except Exception as e:
+        # без вложения счёт клиенту не отправляем — это выглядело бы как успех
+        return Response({'detail': f'PDF не сформирован, письмо не отправлено: {e}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     try:
         msg.send()
