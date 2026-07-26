@@ -1,5 +1,6 @@
 from datetime import date
-from django.db import models
+from decimal import Decimal, ROUND_HALF_UP
+from django.db import models, transaction, IntegrityError
 from django.conf import settings
 
 
@@ -100,14 +101,33 @@ class Invoice(models.Model):
     def __str__(self):
         return f'{self.invoice_number} — {self.client}'
 
+    @staticmethod
+    def _next_number():
+        prefix = f'INV-{date.today().year}-'
+        last = (Invoice.objects.filter(invoice_number__startswith=prefix)
+                .order_by('-invoice_number')
+                .values_list('invoice_number', flat=True).first())
+        seq = int(last[len(prefix):]) + 1 if last else 1
+        return f'{prefix}{seq:04d}'
+
     def save(self, *args, **kwargs):
-        if not self.invoice_number:
-            year = date.today().year
-            count = Invoice.objects.filter(created_at__year=year).count() + 1
-            self.invoice_number = f'INV-{year}-{count:04d}'
-        self.tax_amount = self.subtotal * (self.tax_rate / 100)
-        self.total = self.subtotal + self.tax_amount
-        super().save(*args, **kwargs)
+        subtotal = Decimal(self.subtotal or 0)
+        rate = Decimal(self.tax_rate or 0)
+        self.tax_amount = (subtotal * rate / Decimal('100')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP)
+        self.total = subtotal + self.tax_amount
+        if self.invoice_number:
+            return super().save(*args, **kwargs)
+        # номер от максимума существующих (count ломался после удалений)
+        # + retry на гонку одновременного создания
+        for attempt in range(5):
+            self.invoice_number = self._next_number()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                if attempt == 4:
+                    raise
 
     def recalculate_totals(self):
         self.subtotal = sum(item.amount for item in self.items.all())
@@ -133,5 +153,6 @@ class InvoiceItem(models.Model):
         verbose_name_plural = 'Строки счёта'
 
     def save(self, *args, **kwargs):
-        self.amount = self.quantity * self.unit_price
+        self.amount = (Decimal(self.quantity) * Decimal(self.unit_price)).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP)
         super().save(*args, **kwargs)

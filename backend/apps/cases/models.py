@@ -1,6 +1,6 @@
 import uuid
 from datetime import date
-from django.db import models
+from django.db import models, transaction, IntegrityError
 from django.conf import settings
 
 
@@ -101,12 +101,28 @@ class Case(models.Model):
     def __str__(self):
         return f'{self.case_number}: {self.title}'
 
+    @staticmethod
+    def _next_number():
+        prefix = f'CASE-{date.today().year}-'
+        last = (Case.objects.filter(case_number__startswith=prefix)
+                .order_by('-case_number')
+                .values_list('case_number', flat=True).first())
+        seq = int(last[len(prefix):]) + 1 if last else 1
+        return f'{prefix}{seq:04d}'
+
     def save(self, *args, **kwargs):
-        if not self.case_number:
-            year = date.today().year
-            count = Case.objects.filter(created_at__year=year).count() + 1
-            self.case_number = f'CASE-{year}-{count:04d}'
-        super().save(*args, **kwargs)
+        if self.case_number:
+            return super().save(*args, **kwargs)
+        # номер от максимума существующих (count ломался после удалений)
+        # + retry на гонку одновременного создания
+        for attempt in range(5):
+            self.case_number = self._next_number()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                if attempt == 4:
+                    raise
 
 
 class CaseNote(models.Model):

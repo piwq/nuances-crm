@@ -36,7 +36,14 @@ class CaseListCreateView(generics.ListCreateAPIView):
         )
 
     def get_queryset(self):
-        qs = Case.objects.select_related('client', 'lead_lawyer').prefetch_related('assigned_lawyers', 'tasks')
+        # open_tasks считается аннотацией — иначе N+1 по каждому делу списка
+        qs = Case.objects.select_related('client', 'lead_lawyer').annotate(
+            open_tasks_annotated=Count(
+                'tasks',
+                filter=Q(tasks__status__in=['todo', 'in_progress']),
+                distinct=True,
+            )
+        )
         if self.request.user.is_lawyer:
             qs = qs.filter(
                 Q(assigned_lawyers=self.request.user) | Q(lead_lawyer=self.request.user)
@@ -157,7 +164,7 @@ def change_status_view(request, uuid):
     if new_status == Case.STATUS_CLOSED and not case.closed_at:
         from datetime import date
         case.closed_at = date.today()
-    case.save(update_fields=['status', 'closed_at'])
+    case.save(update_fields=['status', 'closed_at', 'updated_at'])
     log_activity(
         user=request.user,
         action="STATUS_CHANGE",

@@ -12,7 +12,6 @@ from .filters import ClientFilter
 
 
 class ClientListCreateView(generics.ListCreateAPIView):
-    queryset = Client.objects.all()
     filterset_class = ClientFilter
     search_fields = ['first_name', 'last_name', 'company_name', 'email', 'phone']
     ordering_fields = ['created_at', 'last_name', 'company_name']
@@ -22,6 +21,11 @@ class ClientListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'GET':
             return ClientListSerializer
         return ClientSerializer
+
+    def get_queryset(self):
+        # cases_count аннотацией — иначе N+1 по каждому клиенту списка
+        from django.db.models import Count
+        return Client.objects.annotate(cases_count_annotated=Count('cases', distinct=True))
 
 
 class ClientDetailView(generics.RetrieveUpdateDestroyAPIView):

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 from django.db.models import Sum, Count, Q, F, DecimalField
 from django.db.models.functions import TruncMonth
 from rest_framework import status
@@ -25,7 +25,11 @@ def reports_view(request):
         return Response({'detail': 'Параметр months должен быть целым числом.'},
                         status=status.HTTP_400_BAD_REQUEST)
     period_months = max(1, min(period_months, 24))
-    date_from = date.today().replace(day=1) - timedelta(days=30 * (period_months - 1))
+    # первый день месяца N-1 месяцев назад (настоящая месячная арифметика,
+    # а не «месяц = 30 дней»)
+    today = date.today()
+    months_total = today.year * 12 + today.month - 1 - (period_months - 1)
+    date_from = date(months_total // 12, months_total % 12 + 1, 1)
 
     # юрист видит цифры только по своим делам/часам, админ — по всей фирме.
     # pk__in-подзапрос, а не прямой filter: M2M-join скоупинга дублирует строки

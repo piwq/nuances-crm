@@ -54,4 +54,7 @@ class ClientListSerializer(serializers.ModelSerializer):
         fields = ['id', 'uuid', 'client_type', 'display_name', 'email', 'phone', 'created_at', 'cases_count']
 
     def get_cases_count(self, obj):
+        annotated = getattr(obj, 'cases_count_annotated', None)
+        if annotated is not None:
+            return annotated
         return obj.cases.count()

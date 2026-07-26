@@ -74,6 +74,9 @@ class CaseListSerializer(serializers.ModelSerializer):
         return obj.lead_lawyer.get_full_name() if obj.lead_lawyer else None
 
     def get_open_tasks_count(self, obj):
+        annotated = getattr(obj, 'open_tasks_annotated', None)
+        if annotated is not None:
+            return annotated
         return obj.tasks.filter(status__in=['todo', 'in_progress']).count()
 
 

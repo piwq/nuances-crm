@@ -73,7 +73,7 @@ def complete_task_view(request, pk):
 
     task.status = Task.STATUS_DONE
     task.completed_at = timezone.now()
-    task.save(update_fields=['status', 'completed_at'])
+    task.save(update_fields=['status', 'completed_at', 'updated_at'])
     return Response(TaskSerializer(task, context={'request': request}).data)
 
 

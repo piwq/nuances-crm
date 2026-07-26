@@ -87,12 +87,7 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
         return InvoiceSerializer
 
     def get_queryset(self):
-        # auto-mark overdue: sent invoices past due_date become overdue
-        Invoice.objects.filter(
-            status=Invoice.STATUS_SENT,
-            due_date__lt=date.today(),
-        ).update(status=Invoice.STATUS_OVERDUE)
-
+        # просрочку проставляет планировщик (mark_overdue_invoices)
         qs = Invoice.objects.select_related('case', 'client')
         if self.request.user.is_lawyer:
             from django.db.models import Q
@@ -166,7 +161,7 @@ def mark_sent_view(request, pk):
     if invoice is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
     invoice.status = Invoice.STATUS_SENT
-    invoice.save(update_fields=['status'])
+    invoice.save(update_fields=['status', 'updated_at'])
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
 
 
@@ -178,7 +173,7 @@ def mark_paid_view(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
     invoice.status = Invoice.STATUS_PAID
     invoice.paid_date = request.data.get('paid_date') or date.today()
-    invoice.save(update_fields=['status', 'paid_date'])
+    invoice.save(update_fields=['status', 'paid_date', 'updated_at'])
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
 
 
