@@ -2,16 +2,21 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    libpq-dev gcc \
+# только runtime-библиотеки WeasyPrint; компиляторы не нужны (все пакеты — wheel'ы)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
-    libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements/ ./requirements/
-RUN pip install --no-cache-dir -r requirements/production.txt
+RUN useradd --create-home --uid 1000 app
 
-COPY . .
+COPY requirements/ ./requirements/
+RUN pip install --no-cache-dir -r requirements/production.txt -c requirements/constraints.txt
+
+COPY --chown=app:app . .
+
+RUN mkdir -p /app/media /app/staticfiles && chown app:app /app/media /app/staticfiles
+
+USER app
 
 RUN DJANGO_SETTINGS_MODULE=config.settings.production SECRET_KEY=dummy python manage.py collectstatic --noinput
 

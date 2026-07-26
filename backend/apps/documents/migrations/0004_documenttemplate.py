@@ -1,4 +1,3 @@
-import django.utils.timezone
 from django.db import migrations, models
 
 
@@ -27,7 +26,7 @@ class Migration(migrations.Migration):
                 )),
                 ('file', models.FileField(upload_to='document_templates/', verbose_name='Файл шаблона (.docx)')),
                 ('description', models.TextField(blank=True, verbose_name='Описание')),
-                ('created_at', models.DateTimeField(auto_now_add=True, default=django.utils.timezone.now)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
             options={
                 'verbose_name': 'Шаблон документа',
