@@ -1,7 +1,7 @@
 <template>
   <v-menu v-model="open" :close-on-content-click="false" max-width="360" offset="8">
     <template #activator="{ props }">
-      <v-btn v-bind="props" icon variant="text" size="small" class="mb-1">
+      <v-btn v-bind="props" icon variant="text" size="small">
         <v-badge :content="unreadCount" :model-value="unreadCount > 0" color="error" max="9">
           <v-icon>{{ wsConnected ? 'mdi-bell' : 'mdi-bell-outline' }}</v-icon>
         </v-badge>

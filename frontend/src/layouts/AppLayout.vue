@@ -1,5 +1,5 @@
 <template>
-  <v-layout>
+  <v-layout class="app-shell">
     <!-- Sidebar Navigation -->
     <v-navigation-drawer
       v-model="drawer"
@@ -25,6 +25,11 @@
             style="height: 34px; display: block;"
           />
         </v-fade-transition>
+        <v-fade-transition>
+          <div v-if="!rail" class="ml-auto">
+            <notification-bell />
+          </div>
+        </v-fade-transition>
       </div>
 
       <v-list density="compact" nav class="px-2">
@@ -32,7 +37,6 @@
           <div v-if="!rail">
             <global-search />
             <time-tracker />
-            <notification-bell />
           </div>
         </v-fade-transition>
         <v-list-item
@@ -73,13 +77,6 @@
             @click="toggleTheme"
           />
           <v-list-item
-            prepend-icon="mdi-account-circle"
-            title="Мой профиль"
-            to="/profile"
-            rounded="xs"
-            class="mb-1"
-          />
-          <v-list-item
             prepend-icon="mdi-logout"
             title="Выйти"
             rounded="xs"
@@ -88,7 +85,7 @@
           />
 
           <v-fade-transition>
-          <div class="sidebar-user-card" v-if="!rail">
+          <router-link class="sidebar-user-card" to="/profile" v-if="!rail" title="Мой профиль">
             <v-avatar color="primary" size="32">
               <v-img v-if="auth.user?.avatar" :src="auth.user.avatar" />
               <span v-else class="text-white text-caption font-weight-bold">{{ userInitials }}</span>
@@ -97,7 +94,7 @@
               <div class="text-body-2 font-weight-semibold">{{ auth.user?.full_name || auth.user?.username }}</div>
               <div class="text-caption text-medium-emphasis">{{ auth.user?.role === 'admin' ? 'Администратор' : 'Юрист' }}</div>
             </div>
-          </div>
+          </router-link>
           </v-fade-transition>
         </v-list>
       </template>
@@ -215,11 +212,31 @@ async function handleLogout() {
   padding: 10px 12px;
   margin-top: 8px;
   border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.sidebar-user-card:hover {
+  background: rgba(var(--v-theme-primary), 0.06);
+  cursor: pointer;
 }
 
 .sidebar-user-info {
   min-width: 0;
   overflow: hidden;
+}
+
+/* Высота оболочки = высота окна, скроллится только контентная область.
+   Иначе на длинных страницах (недельный календарь) v-layout растягивается,
+   сайдбар растёт вместе с ним и его нижние кнопки уезжают за экран */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+.app-shell :deep(.v-main) {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
 }
 
 /* Плавное сворачивание/раскрытие rail-режима: ширина панели, отступ
