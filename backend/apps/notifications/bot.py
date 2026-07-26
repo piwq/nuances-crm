@@ -311,11 +311,23 @@ async def run_polling(token):
     from aiogram import Bot, Dispatcher, F
     from aiogram.filters import Command, CommandStart
     from aiogram.filters.command import CommandObject
-    from aiogram.types import Message, CallbackQuery
+    from aiogram.types import Message, CallbackQuery, BotCommand
 
     bot = Bot(token)
     dp = Dispatcher()
     MD = 'MarkdownV2'
+
+    # меню быстрого доступа Telegram (кнопка «/» у поля ввода);
+    # регистрируем при каждом старте — меню всегда соответствует коду
+    await bot.set_my_commands([
+        BotCommand(command='today', description='☀️ Что у меня сегодня'),
+        BotCommand(command='tasks', description='✅ Мои активные задачи'),
+        BotCommand(command='cases', description='💼 Мои дела'),
+        BotCommand(command='deadlines', description='⚖️ Процессуальные сроки'),
+        BotCommand(command='hours', description='⏱ Мои часы за неделю и месяц'),
+        BotCommand(command='find', description='🔍 Поиск по делам и клиентам'),
+        BotCommand(command='help', description='Справка по командам'),
+    ])
 
     async def reply_for(message, builder, *args):
         user = await sync_to_async(get_user_by_chat)(message.chat.id)
