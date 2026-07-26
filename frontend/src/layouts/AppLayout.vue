@@ -33,12 +33,12 @@
       </div>
 
       <v-list density="compact" nav class="px-2">
-        <v-fade-transition>
-          <div v-if="!rail">
+        <v-expand-transition>
+          <div v-if="!rail" class="rail-fixed">
             <global-search />
             <time-tracker />
           </div>
-        </v-fade-transition>
+        </v-expand-transition>
         <v-list-item
           v-for="item in navItems"
           :key="item.to"
@@ -84,8 +84,8 @@
             @click="handleLogout"
           />
 
-          <v-fade-transition>
-          <router-link class="sidebar-user-card" to="/profile" v-if="!rail" title="Мой профиль">
+          <v-expand-transition>
+          <router-link class="sidebar-user-card rail-fixed" to="/profile" v-if="!rail" title="Мой профиль">
             <v-avatar color="primary" size="32">
               <v-img v-if="auth.user?.avatar" :src="auth.user.avatar" />
               <span v-else class="text-white text-caption font-weight-bold">{{ userInitials }}</span>
@@ -95,7 +95,7 @@
               <div class="text-caption text-medium-emphasis">{{ auth.user?.role === 'admin' ? 'Администратор' : 'Юрист' }}</div>
             </div>
           </router-link>
-          </v-fade-transition>
+          </v-expand-transition>
         </v-list>
       </template>
     </v-navigation-drawer>
@@ -225,6 +225,24 @@ async function handleLogout() {
   min-width: 0;
   overflow: hidden;
 }
+.sidebar-user-info > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Фиксированная ширина скрываемых блоков: при анимации ширины панели их
+   содержимое не переносится на новые строки, а просто подрезается */
+.rail-fixed {
+  width: 240px;
+}
+.v-navigation-drawer :deep(.v-navigation-drawer__content) {
+  overflow-x: hidden;
+}
+.sidebar-brand {
+  overflow: hidden;
+  white-space: nowrap;
+}
 
 /* Высота оболочки = высота окна, скроллится только контентная область.
    Иначе на длинных страницах (недельный календарь) v-layout растягивается,
@@ -237,6 +255,9 @@ async function handleLogout() {
   height: 100vh;
   height: 100dvh;
   overflow-y: auto;
+  /* место под скроллбар зарезервировано всегда — его появление/исчезание
+     при смене ширины не дёргает контент по горизонтали */
+  scrollbar-gutter: stable;
 }
 
 /* Плавное сворачивание/раскрытие rail-режима: ширина панели, отступ

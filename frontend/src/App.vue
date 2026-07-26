@@ -71,6 +71,16 @@ body, .v-application {
 .gap-2 { gap: 8px; }
 .gap-3 { gap: 12px; }
 
+/* Современные алгоритмы переноса текста (прогрессивное улучшение,
+   старые браузеры просто игнорируют): balance выравнивает длину строк
+   в заголовках, pretty избавляет абзацы от висячих последних слов */
+h1, h2, h3, .v-card-title, .text-h4, .text-h5, .text-h6 {
+  text-wrap: balance;
+}
+p, .v-list-item-subtitle, .v-alert__content {
+  text-wrap: pretty;
+}
+
 .page-enter-active,
 .page-leave-active {
   transition: opacity var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out);
