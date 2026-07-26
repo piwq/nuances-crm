@@ -53,3 +53,16 @@ class TestInvoiceEmail:
 
         invoice_a.refresh_from_db()
         assert invoice_a.status == 'sent'
+
+    def test_resend_for_sent_invoice(self, api, lawyer_a, invoice_a):
+        # повторная отправка (напоминание клиенту) не меняет статус
+        invoice_a.status = 'sent'
+        invoice_a.save()
+        api.force_authenticate(lawyer_a)
+        resp = api.post(
+            f'/api/v1/billing/invoices/{invoice_a.id}/send-email/',
+            {'email': 'client@example.com', 'message': 'Напоминаем об оплате.'})
+        assert resp.status_code == 200
+        assert len(mail.outbox) == 1
+        invoice_a.refresh_from_db()
+        assert invoice_a.status == 'sent'

@@ -15,13 +15,13 @@
             Из записей времени
           </v-btn>
           <v-btn
-            v-if="invoice.status === 'draft'"
+            v-if="['draft', 'sent', 'overdue'].includes(invoice.status)"
             variant="tonal"
             color="primary"
             prepend-icon="mdi-email-send"
             @click="openEmailDialog"
           >
-            Отправить на email
+            {{ invoice.status === 'draft' ? 'Отправить на email' : 'Отправить повторно' }}
           </v-btn>
           <v-btn
             v-if="invoice.status === 'draft'"
