@@ -164,20 +164,44 @@
     </v-row>
 
     <!-- Send Email Dialog -->
-    <form-dialog v-model="emailDialog" max-width="440">
+    <form-dialog v-model="emailDialog" max-width="880">
       <v-card>
         <v-card-title>Отправить счёт на email</v-card-title>
         <v-divider />
         <v-card-text class="pt-4">
-          <v-text-field
-            v-model="emailTo"
-            label="Email получателя *"
-            type="email"
-            prepend-inner-icon="mdi-email"
-            :rules="[v => !!v || 'Обязательное поле', v => /.+@.+\..+/.test(v) || 'Некорректный email']"
-            hint="Счёт будет отправлен с PDF-вложением"
-            persistent-hint
-          />
+          <v-row>
+            <v-col cols="12" md="5">
+              <v-text-field
+                v-model="emailTo"
+                label="Email получателя *"
+                type="email"
+                prepend-inner-icon="mdi-email"
+                :rules="[v => !!v || 'Обязательное поле', v => /.+@.+\..+/.test(v) || 'Некорректный email']"
+              />
+              <v-textarea
+                v-model="emailMessage"
+                label="Сопроводительный текст (необязательно)"
+                placeholder="Например: по вашей просьбе высылаю счёт за август."
+                rows="5"
+                auto-grow
+                counter="500"
+                maxlength="500"
+              />
+              <div class="text-caption text-medium-emphasis mt-2">
+                <v-icon size="14" class="mr-1">mdi-paperclip</v-icon>
+                PDF-версия счёта прикрепится автоматически
+              </div>
+            </v-col>
+            <v-col cols="12" md="7">
+              <div class="text-caption text-medium-emphasis mb-1">Предпросмотр письма</div>
+              <div class="email-preview">
+                <iframe v-if="emailPreviewHtml" :srcdoc="emailPreviewHtml" title="Предпросмотр письма" />
+                <div v-else class="d-flex justify-center align-center" style="height: 100%">
+                  <v-progress-circular indeterminate color="primary" size="24" />
+                </div>
+              </div>
+            </v-col>
+          </v-row>
         </v-card-text>
         <v-divider />
         <v-card-actions>
@@ -239,7 +263,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useBillingStore } from '@/stores/billing'
 import { useNotification } from '@/composables/useNotification'
@@ -266,7 +290,10 @@ const paidDialog = ref(false)
 const paidDate = ref(new Date().toISOString().slice(0, 10))
 const emailDialog = ref(false)
 const emailTo = ref('')
+const emailMessage = ref('')
+const emailPreviewHtml = ref('')
 const sendingEmail = ref(false)
+let previewTimer = null
 
 const itemFormRef = ref(null)
 const savingItem = ref(false)
@@ -301,14 +328,38 @@ async function handleGenerate() {
 
 function openEmailDialog() {
   emailTo.value = invoice.value.client_email || ''
+  emailMessage.value = ''
+  emailPreviewHtml.value = ''
   emailDialog.value = true
+  refreshPreview()
 }
+
+async function refreshPreview() {
+  try {
+    const { data } = await api.get(`/api/v1/billing/invoices/${invoice.value.id}/email-preview/`, {
+      params: { message: emailMessage.value },
+      responseType: 'text',
+    })
+    emailPreviewHtml.value = data
+  } catch {
+    emailPreviewHtml.value = '<p style="font-family:sans-serif;color:#999;padding:16px">Не удалось загрузить предпросмотр</p>'
+  }
+}
+
+// предпросмотр обновляется через полсекунды после остановки ввода
+watch(emailMessage, () => {
+  clearTimeout(previewTimer)
+  previewTimer = setTimeout(refreshPreview, 500)
+})
 
 async function handleSendEmail() {
   if (!emailTo.value) return
   sendingEmail.value = true
   try {
-    const { data } = await api.post(`/api/v1/billing/invoices/${invoice.value.id}/send-email/`, { email: emailTo.value })
+    const { data } = await api.post(`/api/v1/billing/invoices/${invoice.value.id}/send-email/`, {
+      email: emailTo.value,
+      message: emailMessage.value,
+    })
     invoice.value = data
     emailDialog.value = false
     success(`Счёт отправлен на ${emailTo.value}`)
@@ -408,3 +459,18 @@ async function handleDeleteItem(item) {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.email-preview {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 6px;
+  overflow: hidden;
+  height: 420px;
+  background: #f5f3ec;
+}
+.email-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+</style>

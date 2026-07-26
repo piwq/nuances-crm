@@ -290,17 +290,23 @@ def send_invoice_email_view(request, pk):
     if not recipient_email:
         return Response({'detail': 'Не указан email клиента.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    subject = f'Счёт {invoice.invoice_number}'
+    personal_message = (request.data.get('message') or '').strip()
+    subject = f'Счёт {invoice.invoice_number} — Юридическое бюро «Нюансы»'
     body = (
         f'Здравствуйте!\n\n'
-        f'Направляем счёт {invoice.invoice_number} на сумму {invoice.total} ₽.\n'
-        f'Срок оплаты: {invoice.due_date}.\n\n'
+        + (f'{personal_message}\n\n' if personal_message else '')
+        + f'Направляем счёт {invoice.invoice_number} на сумму {invoice.total} ₽.\n'
+        f'Срок оплаты: {invoice.due_date}.\n'
+        f'PDF-версия счёта — во вложении.\n\n'
         f'С уважением,\nЮридическое бюро «Нюансы»'
     )
 
-    from django.core.mail import EmailMessage
+    from django.core.mail import EmailMultiAlternatives
     from django.template.loader import render_to_string
-    msg = EmailMessage(subject=subject, body=body, to=[recipient_email])
+    html_body = render_to_string('billing/invoice_email.html',
+                                 {'invoice': invoice, 'message': personal_message})
+    msg = EmailMultiAlternatives(subject=subject, body=body, to=[recipient_email])
+    msg.attach_alternative(html_body, 'text/html')
 
     try:
         import weasyprint
@@ -322,6 +328,22 @@ def send_invoice_email_view(request, pk):
         invoice.save(update_fields=['status'])
 
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def invoice_email_preview_view(request, pk):
+    """HTML-предпросмотр письма со счётом — рендерится в диалоге отправки."""
+    invoice = _get_invoice_or_none(
+        request, pk, Invoice.objects.prefetch_related('items').select_related('case', 'client'))
+    if invoice is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    from django.template.loader import render_to_string
+    html = render_to_string('billing/invoice_email.html', {
+        'invoice': invoice,
+        'message': (request.query_params.get('message') or '').strip(),
+    })
+    return HttpResponse(html, content_type='text/html; charset=utf-8')
 
 
 @api_view(['GET'])

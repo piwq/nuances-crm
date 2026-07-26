@@ -14,6 +14,7 @@ urlpatterns = [
     path('billing/invoices/<int:pk>/mark-sent/', views.mark_sent_view, name='invoice-mark-sent'),
     path('billing/invoices/<int:pk>/mark-paid/', views.mark_paid_view, name='invoice-mark-paid'),
     path('billing/invoices/<int:pk>/send-email/', views.send_invoice_email_view, name='invoice-send-email'),
+    path('billing/invoices/<int:pk>/email-preview/', views.invoice_email_preview_view, name='invoice-email-preview'),
     path('billing/invoices/<int:pk>/pdf/', views.invoice_pdf_view, name='invoice-pdf'),
     path('billing/invoices/<int:pk>/act/', views.invoice_act_pdf_view, name='invoice-act'),
     path('billing/invoice-items/', views.InvoiceItemListCreateView.as_view(), name='invoice-item-list'),

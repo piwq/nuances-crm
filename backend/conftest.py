@@ -12,6 +12,12 @@ def _tmp_media(settings, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _locmem_email(settings):
+    # в .env настроен реальный SMTP — тесты не должны слать письма наружу
+    settings.EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+
+
+@pytest.fixture(autouse=True)
 def _inmemory_channel_layer(settings):
     # уведомления шлют group_send; в тестах Redis не нужен
     from channels.layers import channel_layers

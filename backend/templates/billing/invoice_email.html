@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Счёт {{ invoice.invoice_number }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F5F3EC;">
+<!-- вёрстка таблицами и инлайн-стили: почтовые клиенты не понимают ничего другого -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F3EC; padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px; max-width:96%; background-color:#FFFFFF; border-radius:6px; overflow:hidden; border:1px solid #EAE6DA;">
+
+        <!-- Шапка -->
+        <tr>
+          <td style="background-color:#2E3C56; padding:28px 40px;">
+            <div style="font-family:Arial,sans-serif; font-size:11px; letter-spacing:3px; color:#A8823B; text-transform:uppercase;">Юридическое бюро</div>
+            <div style="font-family:Georgia,'Times New Roman',serif; font-size:30px; color:#FFFFFF; margin-top:4px;">Нюансы</div>
+          </td>
+        </tr>
+
+        <!-- Тело -->
+        <tr>
+          <td style="padding:36px 40px 8px;">
+            <div style="font-family:Arial,sans-serif; font-size:15px; line-height:1.6; color:#17223A;">
+              Здравствуйте{% if invoice.client %}, {{ invoice.client }}{% endif %}!
+            </div>
+            {% if message %}
+            <div style="font-family:Arial,sans-serif; font-size:15px; line-height:1.6; color:#17223A; margin-top:14px; white-space:pre-line;">{{ message }}</div>
+            {% endif %}
+            <div style="font-family:Arial,sans-serif; font-size:15px; line-height:1.6; color:#17223A; margin-top:14px;">
+              Направляем вам счёт на оплату юридических услуг{% if invoice.case %} по делу «{{ invoice.case.title }}»{% endif %}.
+            </div>
+          </td>
+        </tr>
+
+        <!-- Карточка счёта -->
+        <tr>
+          <td style="padding:24px 40px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FBFAF6; border:1px solid #EAE6DA; border-radius:6px;">
+              <tr>
+                <td style="padding:24px 28px;">
+                  <div style="font-family:Arial,sans-serif; font-size:12px; color:#7D7665; text-transform:uppercase; letter-spacing:1px;">Счёт № {{ invoice.invoice_number }}</div>
+                  <div style="font-family:Georgia,'Times New Roman',serif; font-size:34px; color:#2E3C56; margin-top:6px;">{{ invoice.total }} ₽</div>
+                  <div style="font-family:Arial,sans-serif; font-size:13px; color:#7A1E2B; margin-top:6px; font-weight:bold;">Оплатить до {{ invoice.due_date|date:'d.m.Y' }}</div>
+
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px; border-top:1px solid #EAE6DA;">
+                    <tr>
+                      <td style="font-family:Arial,sans-serif; font-size:13px; color:#7D7665; padding:10px 0 4px;">Сумма без НДС</td>
+                      <td align="right" style="font-family:Arial,sans-serif; font-size:13px; color:#17223A; padding:10px 0 4px;">{{ invoice.subtotal }} ₽</td>
+                    </tr>
+                    <tr>
+                      <td style="font-family:Arial,sans-serif; font-size:13px; color:#7D7665; padding:4px 0;">НДС ({{ invoice.tax_rate }}%)</td>
+                      <td align="right" style="font-family:Arial,sans-serif; font-size:13px; color:#17223A; padding:4px 0;">{{ invoice.tax_amount }} ₽</td>
+                    </tr>
+                    <tr>
+                      <td style="font-family:Arial,sans-serif; font-size:14px; color:#17223A; font-weight:bold; padding:8px 0; border-top:1px solid #EAE6DA;">Итого к оплате</td>
+                      <td align="right" style="font-family:Arial,sans-serif; font-size:14px; color:#17223A; font-weight:bold; padding:8px 0; border-top:1px solid #EAE6DA;">{{ invoice.total }} ₽</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Вложение -->
+        <tr>
+          <td style="padding:0 40px 28px;">
+            <div style="font-family:Arial,sans-serif; font-size:13px; line-height:1.6; color:#4B5B77; background-color:#EEF1F5; border-radius:6px; padding:12px 16px;">
+              &#128206;&nbsp; Полная версия счёта с перечнем услуг — в PDF-вложении к этому письму.
+            </div>
+          </td>
+        </tr>
+
+        <!-- Подпись -->
+        <tr>
+          <td style="padding:0 40px 32px;">
+            <div style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#17223A;">
+              С уважением,<br>
+              <span style="color:#2E3C56; font-weight:bold;">Юридическое бюро «Нюансы»</span>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Футер -->
+        <tr>
+          <td style="background-color:#F5F3EC; border-top:1px solid #EAE6DA; padding:16px 40px;">
+            <div style="font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:#A9A292;">
+              Письмо сформировано автоматически CRM-системой бюро.
+              По вопросам оплаты просто ответьте на это письмо.
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
