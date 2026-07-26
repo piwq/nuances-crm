@@ -164,7 +164,7 @@
     </v-row>
 
     <!-- Send Email Dialog -->
-    <v-dialog v-model="emailDialog" max-width="440" persistent>
+    <form-dialog v-model="emailDialog" max-width="440">
       <v-card>
         <v-card-title>Отправить счёт на email</v-card-title>
         <v-divider />
@@ -188,7 +188,7 @@
           </v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </form-dialog>
 
     <!-- Mark Paid Dialog -->
     <v-dialog v-model="paidDialog" max-width="360">
@@ -206,7 +206,7 @@
     </v-dialog>
 
     <!-- Add Item Dialog -->
-    <v-dialog v-model="itemDialog.show" max-width="440" persistent>
+    <form-dialog v-model="itemDialog.show" max-width="440">
       <v-card>
         <v-card-title>Добавить позицию</v-card-title>
         <v-divider />
@@ -230,7 +230,7 @@
           <v-btn color="primary" variant="tonal" :loading="savingItem" @click="handleSaveItem">Добавить</v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </form-dialog>
   </div>
 
   <div v-else-if="loading" class="d-flex justify-center pa-12">
@@ -249,6 +249,7 @@ import { INVOICE_STATUSES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import api from '@/plugins/axios'
+import FormDialog from '@/components/common/FormDialog.vue'
 
 const route = useRoute()
 const store = useBillingStore()

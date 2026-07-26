@@ -19,7 +19,7 @@
     </v-card>
 
     <!-- Event Dialog -->
-    <v-dialog v-model="dialog.show" max-width="560" persistent>
+    <form-dialog v-model="dialog.show" max-width="560">
       <v-card>
         <v-card-title>{{ dialog.event ? 'Редактировать событие' : 'Новое событие' }}</v-card-title>
         <v-divider />
@@ -102,7 +102,7 @@
           </v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </form-dialog>
   </div>
 </template>
 
@@ -120,6 +120,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { EVENT_TYPES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
+import FormDialog from '@/components/common/FormDialog.vue'
 
 const store = useEventsStore()
 const { success, error } = useNotification()

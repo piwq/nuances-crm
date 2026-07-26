@@ -71,7 +71,7 @@
     </v-card>
 
     <!-- Create Dialog -->
-    <v-dialog v-model="dialog.show" max-width="520" persistent>
+    <form-dialog v-model="dialog.show" max-width="520">
       <v-card>
         <v-card-title>Новый счёт</v-card-title>
         <v-divider />
@@ -117,7 +117,7 @@
           <v-btn color="primary" variant="tonal" :loading="saving" @click="handleSave">Создать</v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </form-dialog>
   </div>
 </template>
 
@@ -132,6 +132,7 @@ import { INVOICE_STATUSES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import api from '@/plugins/axios'
+import FormDialog from '@/components/common/FormDialog.vue'
 
 const store = useBillingStore()
 const route = useRoute()

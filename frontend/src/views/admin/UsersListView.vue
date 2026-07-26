@@ -99,7 +99,7 @@
     </v-card>
 
     <!-- User Dialog -->
-    <v-dialog v-model="dialog.show" max-width="520" persistent>
+    <form-dialog v-model="dialog.show" max-width="520">
       <v-card>
         <v-card-title>{{ dialog.user ? 'Редактировать пользователя' : 'Новый пользователь' }}</v-card-title>
         <v-divider />
@@ -151,7 +151,7 @@
           </v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </form-dialog>
   </div>
 </template>
 
@@ -162,6 +162,7 @@ import { formatDate } from '@/utils/formatters'
 import { USER_ROLES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
+import FormDialog from '@/components/common/FormDialog.vue'
 
 const { success, error } = useNotification()
 

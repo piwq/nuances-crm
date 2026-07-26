@@ -93,7 +93,7 @@
     </v-card>
 
     <!-- Dialog -->
-    <v-dialog v-model="dialog.show" max-width="520" persistent>
+    <form-dialog v-model="dialog.show" max-width="520">
       <v-card>
         <v-card-title>{{ dialog.entry ? 'Редактировать запись' : 'Новая запись времени' }}</v-card-title>
         <v-divider />
@@ -151,7 +151,7 @@
           </v-btn>
         </v-card-actions>
       </v-card>
-    </v-dialog>
+    </form-dialog>
   </div>
 </template>
 
@@ -164,6 +164,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { formatDate, formatHours, formatCurrency } from '@/utils/formatters'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
+import FormDialog from '@/components/common/FormDialog.vue'
 
 const route = useRoute()
 const store = useBillingStore()
