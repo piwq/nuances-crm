@@ -29,7 +29,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    // 401 от самих auth-эндпоинтов (неверный пароль на логине, битый refresh) —
+    // это не «протухшая сессия»: отдаём ошибку вызывающему коду как есть,
+    // иначе неудачный вход запускал logout с перезагрузкой страницы
+    const isAuthEndpoint = /\/api\/v1\/auth\/(login|refresh|logout)\//.test(originalRequest?.url || '')
+
+    if (error.response?.status !== 401 || originalRequest._retry || isAuthEndpoint) {
       return Promise.reject(error)
     }
 
