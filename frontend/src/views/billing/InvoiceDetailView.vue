@@ -164,7 +164,7 @@
     </v-row>
 
     <!-- Send Email Dialog -->
-    <form-dialog v-model="emailDialog" max-width="880">
+    <form-dialog v-model="emailDialog" max-width="980">
       <v-card>
         <v-card-title>Отправить счёт на email</v-card-title>
         <v-divider />
@@ -466,12 +466,14 @@ onMounted(load)
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 6px;
   overflow: hidden;
-  height: 420px;
+  height: min(62vh, 600px);
   background: #f5f3ec;
 }
 .email-preview iframe {
   width: 100%;
   height: 100%;
   border: 0;
+  /* письмо свёрстано под 600px — лёгкое уменьшение, чтобы влезало целиком */
+  zoom: 0.82;
 }
 </style>
