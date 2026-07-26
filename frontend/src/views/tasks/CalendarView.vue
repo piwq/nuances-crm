@@ -95,7 +95,7 @@
           <v-btn v-if="dialog.event" variant="text" color="error" @click="handleDelete">Удалить</v-btn>
           <v-spacer />
           <v-btn variant="text" @click="dialog.show = false">Отмена</v-btn>
-          <v-btn color="primary" variant="tonal" :loading="saving" @click="handleSave">
+          <v-btn color="primary" variant="elevated" :loading="saving" @click="handleSave">
             {{ dialog.event ? 'Сохранить' : 'Создать' }}
           </v-btn>
         </v-card-actions>

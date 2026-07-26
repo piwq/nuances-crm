@@ -207,7 +207,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="emailDialog = false">Отмена</v-btn>
-          <v-btn color="primary" variant="tonal" :loading="sendingEmail" prepend-icon="mdi-send" @click="handleSendEmail">
+          <v-btn color="primary" variant="elevated" :loading="sendingEmail" prepend-icon="mdi-send" @click="handleSendEmail">
             Отправить
           </v-btn>
         </v-card-actions>
@@ -224,7 +224,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="paidDialog = false">Отмена</v-btn>
-          <v-btn color="success" variant="tonal" :loading="marking" @click="handleMarkPaid">Подтвердить</v-btn>
+          <v-btn color="success" variant="elevated" :loading="marking" @click="handleMarkPaid">Подтвердить</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -251,7 +251,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="itemDialog.show = false">Отмена</v-btn>
-          <v-btn color="primary" variant="tonal" :loading="savingItem" @click="handleSaveItem">Добавить</v-btn>
+          <v-btn color="primary" variant="elevated" :loading="savingItem" @click="handleSaveItem">Добавить</v-btn>
         </v-card-actions>
       </v-card>
     </form-dialog>

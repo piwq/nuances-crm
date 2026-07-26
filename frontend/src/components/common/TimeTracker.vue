@@ -36,7 +36,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="startDialog = false">Отмена</v-btn>
-          <v-btn color="primary" variant="tonal" :disabled="!selectedCase" @click="startTimer">
+          <v-btn color="primary" variant="elevated" :disabled="!selectedCase" @click="startTimer">
             <v-icon start>mdi-play</v-icon>Старт
           </v-btn>
         </v-card-actions>
@@ -62,7 +62,7 @@
           <v-btn variant="text" color="error" @click="discardTimer">Отменить</v-btn>
           <v-spacer />
           <v-btn variant="text" @click="stopDialog = false">Назад</v-btn>
-          <v-btn color="success" variant="tonal" :loading="saving" @click="saveTimer">
+          <v-btn color="success" variant="elevated" :loading="saving" @click="saveTimer">
             <v-icon start>mdi-check</v-icon>Сохранить
           </v-btn>
         </v-card-actions>
