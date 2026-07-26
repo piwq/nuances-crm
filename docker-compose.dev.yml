@@ -68,6 +68,27 @@ services:
       redis:
         condition: service_started
 
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    # при пустом TELEGRAM_BOT_TOKEN команда переходит в режим ожидания
+    command: python manage.py run_telegram_bot
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DATABASE_URL: postgres://postgres:postgres@db:5432/legal_crm
+      SECRET_KEY: dev-secret-key
+      DEBUG: "True"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped

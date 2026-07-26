@@ -17,4 +17,7 @@ RUN mkdir -p /app/media && chown app:app /app/media
 
 USER app
 
+# логи долгоживущих процессов (бот, runserver) не должны застревать в буфере
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE 8000

@@ -67,6 +67,26 @@ services:
     networks:
       - backend_net
 
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # при пустом TELEGRAM_BOT_TOKEN команда переходит в режим ожидания
+    command: python manage.py run_telegram_bot
+    volumes:
+      - ./backend:/app
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.demo
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - backend_net
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped

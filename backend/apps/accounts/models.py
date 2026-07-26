@@ -33,3 +33,14 @@ class CustomUser(AbstractUser):
     @property
     def is_lawyer(self):
         return self.role == self.ROLE_LAWYER
+
+
+class TelegramLinkToken(models.Model):
+    """Одноразовый токен привязки Telegram через deep-link t.me/<bot>?start=<token>."""
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='telegram_link_tokens')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Токен привязки Telegram'
+        verbose_name_plural = 'Токены привязки Telegram'

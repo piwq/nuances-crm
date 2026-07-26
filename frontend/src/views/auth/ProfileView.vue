@@ -73,14 +73,31 @@
                   />
                 </v-col>
                 <v-col cols="12">
-                  <v-text-field
-                    v-model="profileForm.telegram_chat_id"
-                    label="Telegram chat ID"
-                    placeholder="например, 123456789"
-                    prepend-inner-icon="mdi-send"
-                    hint="Уведомления о дедлайнах и задачах в Telegram. Узнать ID: напишите боту @userinfobot"
-                    persistent-hint
-                  />
+                  <div class="d-flex align-center gap-3 flex-wrap">
+                    <v-btn
+                      color="primary"
+                      variant="tonal"
+                      prepend-icon="mdi-send"
+                      :loading="tgLinking"
+                      @click="linkTelegram"
+                    >
+                      Привязать Telegram
+                    </v-btn>
+                    <span v-if="profileForm.telegram_chat_id" class="text-body-2 text-success">
+                      <v-icon size="16" class="mr-1">mdi-check-circle</v-icon>Telegram привязан
+                    </span>
+                    <span v-else class="text-body-2 text-medium-emphasis">
+                      Уведомления о дедлайнах и задачах будут приходить в Telegram
+                    </span>
+                    <v-btn
+                      v-if="profileForm.telegram_chat_id"
+                      variant="text"
+                      size="small"
+                      @click="unlinkTelegram"
+                    >
+                      Отвязать
+                    </v-btn>
+                  </div>
                 </v-col>
               </v-row>
               <div class="d-flex justify-end mt-4">
@@ -138,6 +155,7 @@ const { notify: showNotification } = useNotification()
 const activeTab = ref('profile')
 const loading = ref(false)
 const passwordLoading = ref(false)
+const tgLinking = ref(false)
 const avatarFile = ref(null)
 const profileFormRef = ref(null)
 const passwordFormRef = ref(null)
@@ -228,6 +246,30 @@ async function handleUpdateProfile() {
     showNotification('Ошибка при обновлении профиля', 'error')
   } finally {
     loading.value = false
+  }
+}
+
+async function linkTelegram() {
+  tgLinking.value = true
+  try {
+    const { data } = await api.post('/api/v1/auth/telegram-link/')
+    window.open(data.link, '_blank')
+    showNotification('Откройте Telegram и нажмите «Start» у бота', 'info')
+  } catch (e) {
+    showNotification(e.response?.data?.detail || 'Не удалось создать ссылку привязки', 'error')
+  } finally {
+    tgLinking.value = false
+  }
+}
+
+async function unlinkTelegram() {
+  try {
+    const response = await api.patch('/api/v1/auth/me/', { telegram_chat_id: '' })
+    auth.user = response.data
+    profileForm.value.telegram_chat_id = ''
+    showNotification('Telegram отвязан', 'success')
+  } catch {
+    showNotification('Ошибка', 'error')
   }
 }
 

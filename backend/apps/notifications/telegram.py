@@ -4,6 +4,7 @@
 Любые ошибки сети/API проглатываются: уведомление в БД/WS не должно падать
 из-за недоступности Telegram.
 """
+import json
 import logging
 import urllib.parse
 import urllib.request
@@ -11,6 +12,27 @@ import urllib.request
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+_BOT_USERNAME = None
+
+
+def get_bot_username():
+    """Username бота через getMe (кэшируется на процесс); '' если бот не настроен."""
+    global _BOT_USERNAME
+    token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    if not token:
+        return ''
+    if _BOT_USERNAME:
+        return _BOT_USERNAME
+    try:
+        with urllib.request.urlopen(
+                f'https://api.telegram.org/bot{token}/getMe', timeout=5) as resp:
+            data = json.load(resp)
+        _BOT_USERNAME = data['result']['username']
+    except Exception as e:  # noqa: BLE001
+        logger.warning('getMe не удался: %s', e)
+        return ''
+    return _BOT_USERNAME
 
 
 def send_telegram_message(chat_id, text):

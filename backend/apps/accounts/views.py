@@ -88,6 +88,22 @@ def change_password_view(request):
     return Response({'detail': 'Пароль изменён.'})
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def telegram_link_view(request):
+    """Deep-link для привязки Telegram: t.me/<бот>?start=<одноразовый токен>."""
+    from apps.notifications.telegram import get_bot_username
+    from .telegram_link import create_link_token
+    username = get_bot_username()
+    if not username:
+        return Response(
+            {'detail': 'Telegram-бот не настроен (TELEGRAM_BOT_TOKEN пуст).'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    token = create_link_token(request.user)
+    return Response({'link': f'https://t.me/{username}?start={token}'})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def lawyers_list_view(request):

@@ -14,3 +14,4 @@ channels==4.0.*
 channels-redis==4.2.*
 daphne==4.1.*
 docxtpl==0.16.*
+aiogram==3.*

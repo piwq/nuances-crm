@@ -20,4 +20,7 @@ USER app
 
 RUN DJANGO_SETTINGS_MODULE=config.settings.production SECRET_KEY=dummy python manage.py collectstatic --noinput
 
+# логи долгоживущих процессов (бот, daphne) не должны застревать в буфере
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE 8000
