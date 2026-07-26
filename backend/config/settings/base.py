@@ -28,6 +28,8 @@ THIRD_PARTY_APPS = [
     'corsheaders',
     'django_filters',
     'storages',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 ]
 
 LOCAL_APPS = [
@@ -175,6 +177,20 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/min',  # защита /auth/login/ от перебора
     },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Nuances CRM API',
+    'DESCRIPTION': 'API юридической CRM «Нюансы»',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # статика Swagger UI из sidecar-пакета — без CDN, работает в изолированной сети
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+    # тестовый контур; перед продом закрыть — см. память nuances-crm-prod-checklist
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
 }
 
 from datetime import timedelta

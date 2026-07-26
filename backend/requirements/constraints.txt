@@ -32,6 +32,8 @@ djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1
 docxcompose==2.2.0
 docxtpl==0.16.8
+drf-spectacular==0.27.2
+drf-spectacular-sidecar==2026.7.1
 factory_boy==3.3.3
 Faker==40.36.0
 fonttools==4.63.0
@@ -40,9 +42,12 @@ html5lib==1.1
 hyperlink==21.0.0
 idna==3.18
 Incremental==24.11.0
+inflection==0.5.1
 iniconfig==2.3.0
 Jinja2==3.1.6
 jmespath==1.1.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
 lxml==6.1.1
 magic-filter==1.0.12
 MarkupSafe==3.0.3
@@ -66,7 +71,10 @@ pytest-django==4.8.0
 python-dateutil==2.9.0.post0
 python-decouple==3.8
 python-docx==1.2.0
+PyYAML==6.0.3
 redis==8.0.1
+referencing==0.37.0
+rpds-py==2026.6.3
 s3transfer==0.10.4
 service-identity==26.1.0
 six==1.17.0
@@ -77,6 +85,7 @@ txaio==26.6.1
 typing-inspection==0.4.2
 typing_extensions==4.16.0
 ujson==5.13.0
+uritemplate==4.2.0
 urllib3==2.7.0
 weasyprint==61.2
 webencodings==0.5.1
