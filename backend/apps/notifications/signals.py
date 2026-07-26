@@ -38,8 +38,10 @@ def stash_old_case_fields(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Case)
 def notify_case_changes(sender, instance, created, **kwargs):
-    # новый ответственный юрист
-    if instance.lead_lawyer_id and instance.lead_lawyer_id != getattr(instance, '_old_lead_id', None):
+    skip_uid = getattr(instance, '_notify_skip_user', None)
+    # новый ответственный юрист (кроме случая «сам себя при создании»)
+    if instance.lead_lawyer_id and instance.lead_lawyer_id != skip_uid and \
+            instance.lead_lawyer_id != getattr(instance, '_old_lead_id', None):
         create_notification(
             user=instance.lead_lawyer,
             title=f'Вы ответственный по делу: {instance.title}',
@@ -69,7 +71,10 @@ def notify_case_assignment(sender, instance, action, pk_set, **kwargs):
     if action != 'post_add' or not pk_set:
         return
     from apps.accounts.models import CustomUser
+    skip_uid = getattr(instance, '_notify_skip_user', None)
     for user in CustomUser.objects.filter(pk__in=pk_set):
+        if user.pk == skip_uid:
+            continue
         create_notification(
             user=user,
             title=f'Вы назначены на дело: {instance.title}',

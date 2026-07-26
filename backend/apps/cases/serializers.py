@@ -40,9 +40,19 @@ class CaseSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         assigned_lawyers = validated_data.pop('assigned_lawyers', [])
-        validated_data['created_by'] = self.context['request'].user
-        case = Case.objects.create(**validated_data)
+        user = self.context['request'].user
+        validated_data['created_by'] = user
+        case = Case(**validated_data)
+        case._notify_skip_user = user.pk  # о собственных действиях не уведомляем
+        if user.is_lawyer and not case.lead_lawyer_id:
+            # иначе юрист-создатель сразу теряет доступ к своему делу:
+            # скоупинг видимости учитывает только ведущего и назначенных
+            case.lead_lawyer = user
+        case.save()
         case.assigned_lawyers.set(assigned_lawyers)
+        if user.is_lawyer and case.lead_lawyer_id != user.pk and \
+                not case.assigned_lawyers.filter(pk=user.pk).exists():
+            case.assigned_lawyers.add(user)
         return case
 
     def update(self, instance, validated_data):

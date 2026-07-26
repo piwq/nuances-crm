@@ -40,6 +40,44 @@ class TestCaseNotesScoping:
 
 
 @pytest.mark.django_db
+class TestCaseCreatorAccess:
+    def test_lawyer_creator_becomes_lead_and_sees_case(self, api, lawyer_a, client_a):
+        # регрессия: юрист создавал дело без ведущего и сразу получал 404
+        # на его карточке (created_by не входит в скоупинг видимости)
+        api.force_authenticate(lawyer_a)
+        resp = api.post('/api/v1/cases/', {
+            'title': 'Свежее дело', 'client': client_a.id, 'category': 'civil'})
+        assert resp.status_code == 201
+        assert resp.data['lead_lawyer'] == lawyer_a.id
+        assert api.get(f"/api/v1/cases/{resp.data['uuid']}/").status_code == 200
+
+    def test_creator_kept_in_team_when_lead_is_other(self, api, lawyer_a, lawyer_b, client_a):
+        api.force_authenticate(lawyer_a)
+        resp = api.post('/api/v1/cases/', {
+            'title': 'Дело для коллеги', 'client': client_a.id, 'category': 'civil',
+            'lead_lawyer': lawyer_b.id})
+        assert resp.status_code == 201
+        assert lawyer_a.id in resp.data['assigned_lawyers']
+        assert api.get(f"/api/v1/cases/{resp.data['uuid']}/").status_code == 200
+
+    def test_no_self_notification_on_own_case(self, api, lawyer_a, client_a):
+        from apps.notifications.models import Notification
+        Notification.objects.all().delete()
+        api.force_authenticate(lawyer_a)
+        api.post('/api/v1/cases/', {
+            'title': 'Тихое дело', 'client': client_a.id, 'category': 'civil'})
+        assert not Notification.objects.filter(user=lawyer_a).exists()
+
+    def test_admin_creation_keeps_lead_empty(self, api, admin_user, client_a):
+        api.force_authenticate(admin_user)
+        resp = api.post('/api/v1/cases/', {
+            'title': 'Дело админа', 'client': client_a.id, 'category': 'civil'})
+        assert resp.status_code == 201
+        assert resp.data['lead_lawyer'] is None
+        assert api.get(f"/api/v1/cases/{resp.data['uuid']}/").status_code == 200
+
+
+@pytest.mark.django_db
 class TestDeletionGuards:
     def test_client_delete_admin_only(self, api, lawyer_a, client_a):
         api.force_authenticate(lawyer_a)
