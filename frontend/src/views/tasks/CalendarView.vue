@@ -314,4 +314,14 @@ const calendarOptions = {
 }
 .fc-daygrid-event { cursor: pointer; }
 .fc-list-event { cursor: pointer; }
+
+/* FullCalendar не знает про тёмную тему Vuetify: его дефолтные переменные
+   дают белую шапку дней недели и светлые фоны поверх тёмной карточки */
+.v-theme--dark .fc {
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: rgba(255, 255, 255, 0.06);
+  --fc-border-color: rgba(255, 255, 255, 0.12);
+  --fc-today-bg-color: rgba(168, 130, 59, 0.16);
+  --fc-list-event-hover-bg-color: rgba(255, 255, 255, 0.08);
+}
 </style>

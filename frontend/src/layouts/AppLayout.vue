@@ -9,25 +9,32 @@
     >
       <div class="sidebar-brand">
         <v-btn
-          :icon="rail ? 'mdi-menu-open' : 'mdi-menu-open'"
+          icon="mdi-menu-open"
           variant="text"
           color="primary"
           size="small"
-          :style="rail ? 'transform: rotate(180deg)' : ''"
+          class="rail-toggle"
+          :class="{ 'rail-toggle--rotated': rail }"
           @click="rail = !rail"
         />
-        <img
-          v-if="!rail"
-          :src="theme.global.name.value === 'dark' ? logoDark : logoLight"
-          alt="Нюансы"
-          style="height: 34px; display: block;"
-        />
+        <v-fade-transition>
+          <img
+            v-if="!rail"
+            :src="theme.global.name.value === 'dark' ? logoDark : logoLight"
+            alt="Нюансы"
+            style="height: 34px; display: block;"
+          />
+        </v-fade-transition>
       </div>
 
       <v-list density="compact" nav class="px-2">
-        <global-search v-if="!rail" />
-        <time-tracker v-if="!rail" />
-        <notification-bell v-if="!rail" />
+        <v-fade-transition>
+          <div v-if="!rail">
+            <global-search />
+            <time-tracker />
+            <notification-bell />
+          </div>
+        </v-fade-transition>
         <v-list-item
           v-for="item in navItems"
           :key="item.to"
@@ -80,6 +87,7 @@
             @click="handleLogout"
           />
 
+          <v-fade-transition>
           <div class="sidebar-user-card" v-if="!rail">
             <v-avatar color="primary" size="32">
               <v-img v-if="auth.user?.avatar" :src="auth.user.avatar" />
@@ -90,6 +98,7 @@
               <div class="text-caption text-medium-emphasis">{{ auth.user?.role === 'admin' ? 'Администратор' : 'Юрист' }}</div>
             </div>
           </div>
+          </v-fade-transition>
         </v-list>
       </template>
     </v-navigation-drawer>
@@ -211,5 +220,22 @@ async function handleLogout() {
 .sidebar-user-info {
   min-width: 0;
   overflow: hidden;
+}
+
+/* Плавное сворачивание/раскрытие rail-режима: ширина панели, отступ
+   контента и поворот кнопки анимируются одной длительностью */
+.v-navigation-drawer {
+  transition-property: width, transform, box-shadow !important;
+  transition-duration: var(--dur-med) !important;
+  transition-timing-function: var(--ease-out) !important;
+}
+.v-main {
+  transition: padding-left var(--dur-med) var(--ease-out) !important;
+}
+.rail-toggle {
+  transition: transform var(--dur-med) var(--ease-out);
+}
+.rail-toggle--rotated {
+  transform: rotate(180deg);
 }
 </style>
