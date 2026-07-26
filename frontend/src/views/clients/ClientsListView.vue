@@ -62,6 +62,7 @@
         </template>
         <template #item.actions="{ item }">
           <v-btn icon="mdi-pencil" size="small" variant="text" :to="`/clients/${item.uuid}/edit`" />
+          <v-btn v-if="auth.isAdmin" icon="mdi-delete-outline" size="small" variant="text" color="error" @click="deleteClient(item)" />
         </template>
       </v-data-table-server>
     </v-card>
@@ -70,14 +71,34 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { useClientsStore } from '@/stores/clients'
 import { formatDate } from '@/utils/formatters'
 import PageHeader from '@/components/common/PageHeader.vue'
+import { useNotification } from '@/composables/useNotification'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
+const auth = useAuthStore()
 const store = useClientsStore()
+const { success, error } = useNotification()
+const { confirm: confirmDlg } = useConfirmDialog()
 const search = ref('')
 const filters = ref({ client_type: '' })
 let searchTimeout = null
+
+async function deleteClient(item) {
+  const ok = await confirmDlg(
+    'Удалить клиента?',
+    `«${item.display_name}» будет удалён. Клиента с делами удалить нельзя.`,
+  )
+  if (!ok) return
+  try {
+    await store.deleteClient(item.uuid)
+    success('Клиент удалён')
+  } catch (e) {
+    error(e.response?.data?.detail || 'Не удалось удалить клиента')
+  }
+}
 
 const headers = [
   { title: 'Клиент', key: 'display_name', sortable: true },

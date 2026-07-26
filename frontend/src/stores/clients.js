@@ -42,9 +42,9 @@ export const useClientsStore = defineStore('clients', () => {
     return data
   }
 
-  async function deleteClient(id) {
-    await api.delete(`/api/v1/clients/${id}/`)
-    clients.value = clients.value.filter(c => c.id !== id)
+  async function deleteClient(uuid) {
+    await api.delete(`/api/v1/clients/${uuid}/`)
+    clients.value = clients.value.filter(c => c.uuid !== uuid)
   }
 
   async function fetchContactPersons(clientId) {

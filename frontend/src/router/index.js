@@ -43,6 +43,7 @@ const routes = [
       { path: 'profile', name: 'Profile', component: () => import('@/views/auth/ProfileView.vue') },
       { path: 'chat', name: 'Chat', component: () => import('@/views/chat/ChatView.vue') },
       { path: 'admin/users', name: 'UsersList', component: () => import('@/views/admin/UsersListView.vue'), meta: { roles: ['admin'] } },
+      { path: 'admin/templates', name: 'Templates', component: () => import('@/views/admin/TemplatesView.vue'), meta: { roles: ['admin'] } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

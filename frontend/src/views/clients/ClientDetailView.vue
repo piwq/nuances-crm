@@ -1,7 +1,12 @@
 <template>
   <div v-if="client">
     <page-header :title="client.display_name" :subtitle="client.client_type === 'individual' ? 'Физическое лицо' : 'Юридическое лицо'">
-      <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/clients/${client.uuid}/edit`">Редактировать</v-btn>
+      <div class="d-flex gap-2">
+        <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/clients/${client.uuid}/edit`">Редактировать</v-btn>
+        <v-btn v-if="auth.isAdmin" color="error" variant="outlined" prepend-icon="mdi-delete-outline" @click="deleteClient">
+          Удалить
+        </v-btn>
+      </div>
     </page-header>
 
     <v-row>
@@ -50,10 +55,40 @@
                 {{ cp.last_name }} {{ cp.first_name }} {{ cp.middle_name }}
                 <v-chip v-if="cp.is_primary" size="x-small" color="primary" variant="tonal" class="ml-1">Основной</v-chip>
               </template>
+              <template #append>
+                <v-btn icon="mdi-delete-outline" size="small" variant="text" color="error" @click="deleteContact(cp)" />
+              </template>
             </v-list-item>
           </v-list>
           <v-card-text v-else class="text-medium-emphasis">Нет контактных лиц</v-card-text>
         </v-card>
+
+        <!-- Contact Person Dialog -->
+        <v-dialog v-model="contactDialog" max-width="480">
+          <v-card>
+            <v-card-title>Новое контактное лицо</v-card-title>
+            <v-card-text>
+              <v-row dense>
+                <v-col cols="6"><v-text-field v-model="contactForm.last_name" label="Фамилия" /></v-col>
+                <v-col cols="6"><v-text-field v-model="contactForm.first_name" label="Имя" /></v-col>
+              </v-row>
+              <v-text-field v-model="contactForm.middle_name" label="Отчество" />
+              <v-text-field v-model="contactForm.position" label="Должность" />
+              <v-row dense>
+                <v-col cols="6"><v-text-field v-model="contactForm.phone" label="Телефон" /></v-col>
+                <v-col cols="6"><v-text-field v-model="contactForm.email" label="Email" /></v-col>
+              </v-row>
+              <v-checkbox v-model="contactForm.is_primary" label="Основной контакт" hide-details />
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer />
+              <v-btn variant="text" @click="contactDialog = false">Отмена</v-btn>
+              <v-btn color="primary" :loading="contactSaving" :disabled="!contactForm.last_name.trim()" @click="saveContact">
+                Добавить
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
 
         <!-- Cases -->
         <v-card>
@@ -91,21 +126,77 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useClientsStore } from '@/stores/clients'
 import { formatDate } from '@/utils/formatters'
 import { CASE_STATUSES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
+import { useNotification } from '@/composables/useNotification'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import api from '@/plugins/axios'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 const store = useClientsStore()
+const { success, error } = useNotification()
+const { confirm: confirmDlg } = useConfirmDialog()
 
 const client = ref(null)
 const cases = ref([])
 const loading = ref(true)
 const contactDialog = ref(false)
+const contactSaving = ref(false)
+const contactForm = ref(emptyContact())
+
+function emptyContact() {
+  return { last_name: '', first_name: '', middle_name: '', position: '', phone: '', email: '', is_primary: false }
+}
+
+async function saveContact() {
+  if (!contactForm.value.last_name.trim()) return
+  contactSaving.value = true
+  try {
+    await store.createContactPerson(route.params.id, contactForm.value)
+    client.value = await store.fetchClient(route.params.id)
+    success('Контактное лицо добавлено')
+    contactDialog.value = false
+    contactForm.value = emptyContact()
+  } catch {
+    error('Ошибка сохранения')
+  } finally {
+    contactSaving.value = false
+  }
+}
+
+async function deleteContact(cp) {
+  const ok = await confirmDlg('Удалить контактное лицо?', `${cp.last_name} ${cp.first_name}`.trim())
+  if (!ok) return
+  try {
+    await store.deleteContactPerson(cp.id)
+    client.value = await store.fetchClient(route.params.id)
+    success('Контактное лицо удалено')
+  } catch {
+    error('Ошибка удаления')
+  }
+}
+
+async function deleteClient() {
+  const ok = await confirmDlg(
+    'Удалить клиента?',
+    `«${client.value.display_name}» будет удалён. Клиента с делами удалить нельзя.`,
+  )
+  if (!ok) return
+  try {
+    await api.delete(`/api/v1/clients/${client.value.uuid}/`)
+    success('Клиент удалён')
+    router.push('/clients')
+  } catch (e) {
+    error(e.response?.data?.detail || 'Не удалось удалить клиента')
+  }
+}
 
 onMounted(async () => {
   loading.value = true

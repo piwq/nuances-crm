@@ -124,7 +124,7 @@
 <script setup>
 import { ref } from 'vue'
 import { isBefore, parseISO, startOfToday } from 'date-fns'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useBillingStore } from '@/stores/billing'
 import { useNotification } from '@/composables/useNotification'
 import { formatDate, formatCurrency } from '@/utils/formatters'
@@ -134,10 +134,13 @@ import StatusChip from '@/components/common/StatusChip.vue'
 import api from '@/plugins/axios'
 
 const store = useBillingStore()
+const route = useRoute()
 const router = useRouter()
 const { success, error } = useNotification()
 
 const filters = ref({ case: null, status: '' })
+// переход «Перейти к счетам» из карточки дела приносит ?case=<id>
+if (route.query.case) filters.value.case = Number(route.query.case)
 let currentOptions = { page: 1, itemsPerPage: 25, sortBy: [] }
 
 const cases = ref([])

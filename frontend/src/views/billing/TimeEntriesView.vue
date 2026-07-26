@@ -157,6 +157,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useBillingStore } from '@/stores/billing'
 import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -164,11 +165,14 @@ import { formatDate, formatHours, formatCurrency } from '@/utils/formatters'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
 
+const route = useRoute()
 const store = useBillingStore()
 const { success, error } = useNotification()
 const { confirm } = useConfirmDialog()
 
 const filters = ref({ case: null, date_from: '', date_to: '', is_billable: '', unbilled: '' })
+// переход «Управлять временем» из карточки дела приносит ?case=<id>
+if (route.query.case) filters.value.case = Number(route.query.case)
 let currentOptions = { page: 1, itemsPerPage: 25, sortBy: [] }
 
 const cases = ref([])

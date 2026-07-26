@@ -51,6 +51,14 @@
             class="mb-1"
           />
           <v-list-item
+            v-if="auth.isAdmin"
+            prepend-icon="mdi-file-document-multiple-outline"
+            title="Шаблоны"
+            to="/admin/templates"
+            rounded="xs"
+            class="mb-1"
+          />
+          <v-list-item
             :prepend-icon="theme.global.name.value === 'light' ? 'mdi-weather-night' : 'mdi-weather-sunny'"
             :title="theme.global.name.value === 'light' ? 'Темная тема' : 'Светлая тема'"
             rounded="xs"
@@ -115,7 +123,9 @@
         <v-card-actions>
           <v-spacer />
           <v-btn color="grey" variant="text" @click="onCancel">Отмена</v-btn>
-          <v-btn color="error" variant="elevated" @click="onConfirm">Удалить</v-btn>
+          <v-btn :color="confirmDialog.confirmColor" variant="elevated" @click="onConfirm">
+            {{ confirmDialog.confirmText }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

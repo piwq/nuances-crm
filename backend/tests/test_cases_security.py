@@ -37,3 +37,30 @@ class TestCaseNotesScoping:
         assert api.post(f'/api/v1/cases/{case_a.id}/notes/', {'text': 'заметка'}).status_code == 201
         resp = api.get(f'/api/v1/cases/{case_a.id}/notes/')
         assert len(resp.data['results']) == 1
+
+
+@pytest.mark.django_db
+class TestDeletionGuards:
+    def test_client_delete_admin_only(self, api, lawyer_a, client_a):
+        api.force_authenticate(lawyer_a)
+        assert api.delete(f'/api/v1/clients/{client_a.uuid}/').status_code == 403
+
+    def test_client_with_cases_delete_blocked(self, api, admin_user, client_a, case_a):
+        api.force_authenticate(admin_user)
+        resp = api.delete(f'/api/v1/clients/{client_a.uuid}/')
+        assert resp.status_code == 400  # PROTECT: раньше падало 500-й ProtectedError
+
+    def test_client_without_cases_deleted(self, api, admin_user, client_a):
+        api.force_authenticate(admin_user)
+        assert api.delete(f'/api/v1/clients/{client_a.uuid}/').status_code == 204
+
+    def test_case_with_invoice_delete_blocked(self, api, admin_user, case_a, client_a):
+        from datetime import date
+        from apps.billing.models import Invoice
+        Invoice.objects.create(case=case_a, client=client_a, due_date=date.today())
+        api.force_authenticate(admin_user)
+        assert api.delete(f'/api/v1/cases/{case_a.uuid}/').status_code == 400
+
+    def test_case_delete_ok_for_admin(self, api, admin_user, case_a):
+        api.force_authenticate(admin_user)
+        assert api.delete(f'/api/v1/cases/{case_a.uuid}/').status_code == 204

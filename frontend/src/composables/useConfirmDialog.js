@@ -4,13 +4,15 @@ const dialog = ref({
   show: false,
   title: '',
   message: '',
+  confirmText: 'Удалить',
+  confirmColor: 'error',
   resolve: null,
 })
 
 export function useConfirmDialog() {
-  function confirm(title, message = '') {
+  function confirm(title, message = '', { confirmText = 'Удалить', confirmColor = 'error' } = {}) {
     return new Promise((resolve) => {
-      dialog.value = { show: true, title, message, resolve }
+      dialog.value = { show: true, title, message, confirmText, confirmColor, resolve }
     })
   }
 

@@ -6,6 +6,9 @@
           <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.uuid}/edit`">
             Редактировать
           </v-btn>
+          <v-btn v-if="auth.isAdmin" color="error" variant="outlined" prepend-icon="mdi-delete-outline" @click="deleteCase">
+            Удалить
+          </v-btn>
           <v-menu>
             <template #activator="{ props }">
               <v-btn v-bind="props" variant="tonal" append-icon="mdi-chevron-down" :loading="statusChanging">
@@ -92,10 +95,19 @@
               </v-card-text>
             </v-card>
             <v-card>
-              <v-card-title>Команда</v-card-title>
+              <v-card-title class="d-flex justify-space-between align-center">
+                Команда
+                <v-btn v-if="auth.isAdmin" size="small" variant="tonal" color="primary" prepend-icon="mdi-account-plus" @click="openAssignDialog">
+                  Назначить
+                </v-btn>
+              </v-card-title>
               <v-list density="compact">
                 <v-list-item v-if="caseItem.lead_lawyer_detail" :title="`${caseItem.lead_lawyer_detail.last_name} ${caseItem.lead_lawyer_detail.first_name}`" subtitle="Ответственный юрист" prepend-icon="mdi-account-star" />
-                <v-list-item v-for="lawyer in caseItem.assigned_lawyers_detail" :key="lawyer.id" :title="`${lawyer.last_name} ${lawyer.first_name}`" subtitle="Юрист" prepend-icon="mdi-account" />
+                <v-list-item v-for="lawyer in caseItem.assigned_lawyers_detail" :key="lawyer.id" :title="`${lawyer.last_name} ${lawyer.first_name}`" subtitle="Юрист" prepend-icon="mdi-account">
+                  <template #append>
+                    <v-btn v-if="auth.isAdmin" icon="mdi-close" size="x-small" variant="text" @click="unassignLawyer(lawyer)" />
+                  </template>
+                </v-list-item>
               </v-list>
             </v-card>
           </v-col>
@@ -128,8 +140,9 @@
                 <v-icon :icon="fileIcon(doc.file)" class="mr-3" />
               </template>
               <template #append>
+                <v-btn v-if="isPreviewable(doc)" icon="mdi-eye-outline" variant="text" size="small" @click="previewDoc(doc)" />
                 <v-btn icon="mdi-download" variant="text" size="small" @click="documentsStore.downloadDocument(doc.uuid, doc.title)" />
-                <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteDoc(doc.uuid)" />
+                <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteDoc(doc)" />
               </template>
             </v-list-item>
           </v-list>
@@ -145,7 +158,12 @@
         <v-card>
           <v-card-title class="d-flex justify-space-between align-center">
             Задачи
-            <v-btn color="primary" prepend-icon="mdi-plus" variant="tonal" size="small" to="/tasks">Все задачи</v-btn>
+            <div class="d-flex gap-2">
+              <v-btn variant="text" size="small" to="/tasks">Все задачи</v-btn>
+              <v-btn color="primary" prepend-icon="mdi-plus" variant="tonal" size="small" @click="openTaskDialog">
+                Новая задача
+              </v-btn>
+            </div>
           </v-card-title>
           <v-list v-if="caseTasks.length">
             <v-list-item v-for="task in caseTasks" :key="task.id" :title="task.title" :subtitle="`Срок: ${formatDate(task.due_date)}`">
@@ -171,7 +189,7 @@
               <v-card-text>
                 <div class="text-h4 mb-2">{{ totalHours }} ч.</div>
                 <div class="text-subtitle-1 text-medium-emphasis mb-4">Всего зафиксировано времени по делу</div>
-                <v-btn color="primary" block to="/billing/time">Управлять временем</v-btn>
+                <v-btn color="primary" block :to="{ path: '/billing/time', query: { case: caseItem.id } }">Управлять временем</v-btn>
               </v-card-text>
             </v-card>
           </v-col>
@@ -190,7 +208,7 @@
               <v-card-text v-else class="text-center pa-4 text-medium-emphasis">Нет выставленных счетов</v-card-text>
               <v-divider />
               <v-card-actions>
-                <v-btn variant="text" block to="/billing/invoices">Перейти к счетам</v-btn>
+                <v-btn variant="text" block :to="{ path: '/billing/invoices', query: { case: caseItem.id } }">Перейти к счетам</v-btn>
               </v-card-actions>
             </v-card>
           </v-col>
@@ -324,6 +342,76 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Preview Dialog -->
+    <v-dialog v-model="previewDialog" max-width="960" @after-leave="releasePreview">
+      <v-card>
+        <v-card-title class="d-flex justify-space-between align-center">
+          <span class="text-truncate">{{ previewTitle }}</span>
+          <v-btn icon="mdi-close" variant="text" @click="previewDialog = false" />
+        </v-card-title>
+        <v-card-text class="pa-0" style="height: 75vh">
+          <iframe v-if="previewKind === 'pdf'" :src="previewUrl" style="width: 100%; height: 100%; border: 0" />
+          <div v-else class="d-flex justify-center align-center pa-4" style="height: 100%">
+            <img :src="previewUrl" style="max-width: 100%; max-height: 100%; object-fit: contain" />
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- New Task Dialog -->
+    <v-dialog v-model="taskDialog" max-width="500">
+      <v-card>
+        <v-card-title>Новая задача по делу</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="taskForm.title" label="Название" />
+          <v-textarea v-model="taskForm.description" label="Описание" rows="2" auto-grow />
+          <v-select
+            v-model="taskForm.assigned_to"
+            :items="lawyers"
+            item-title="full_name"
+            item-value="id"
+            label="Исполнитель"
+            clearable
+          />
+          <v-row dense>
+            <v-col cols="6">
+              <v-text-field v-model="taskForm.due_date" label="Срок" type="date" clearable />
+            </v-col>
+            <v-col cols="6">
+              <v-select v-model="taskForm.priority" :items="TASK_PRIORITIES" item-title="label" item-value="value" label="Приоритет" />
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="taskDialog = false">Отмена</v-btn>
+          <v-btn color="primary" :loading="taskSaving" :disabled="!taskForm.title.trim()" @click="createTask">Создать</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Assign Lawyer Dialog -->
+    <v-dialog v-model="assignDialog" max-width="420">
+      <v-card>
+        <v-card-title>Назначить юриста</v-card-title>
+        <v-card-text>
+          <v-select
+            v-model="assignLawyerId"
+            :items="assignableLawyers"
+            item-title="full_name"
+            item-value="id"
+            label="Юрист"
+            :no-data-text="'Все юристы уже назначены'"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="assignDialog = false">Отмена</v-btn>
+          <v-btn color="primary" :loading="assignSaving" :disabled="!assignLawyerId" @click="assignLawyer">Назначить</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
   <div v-else-if="loading" class="d-flex justify-center mt-12">
     <v-progress-circular indeterminate color="primary" />
@@ -332,7 +420,8 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useCasesStore } from '@/stores/cases'
 import { useDocumentsStore } from '@/stores/documents'
 import { useTasksStore } from '@/stores/tasks'
@@ -342,14 +431,18 @@ import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useNotification } from '@/composables/useNotification'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import api from '@/plugins/axios'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 const casesStore = useCasesStore()
 const documentsStore = useDocumentsStore()
 const tasksStore = useTasksStore()
 const billingStore = useBillingStore()
 const { success, error } = useNotification()
+const { confirm: confirmDlg } = useConfirmDialog()
 
 const caseItem = ref(null)
 const loading = ref(true)
@@ -374,6 +467,24 @@ const notesLoading = ref(false)
 const noteSaving = ref(false)
 const newNoteText = ref('')
 let notesLoaded = false
+
+const previewDialog = ref(false)
+const previewUrl = ref('')
+const previewKind = ref('')
+const previewTitle = ref('')
+
+const taskDialog = ref(false)
+const taskSaving = ref(false)
+const taskForm = ref({ title: '', description: '', assigned_to: null, due_date: null, priority: 'medium' })
+const lawyers = ref([])
+
+const assignDialog = ref(false)
+const assignSaving = ref(false)
+const assignLawyerId = ref(null)
+const assignableLawyers = computed(() => {
+  const taken = new Set((caseItem.value?.assigned_lawyers_detail || []).map(l => l.id))
+  return lawyers.value.filter(l => !taken.has(l.id))
+})
 
 const categoryLabel = computed(() => CASE_CATEGORIES.find(c => c.value === caseItem.value?.category)?.label || caseItem.value?.category)
 
@@ -508,13 +619,132 @@ function fileIcon(name) {
   return 'mdi-file-document-outline'
 }
 
-async function deleteDoc(uuid) {
-  if (!confirm('Удалить документ?')) return
+async function deleteDoc(doc) {
+  const ok = await confirmDlg('Удалить документ?', doc.title)
+  if (!ok) return
   try {
-    await documentsStore.deleteDocument(uuid)
+    await documentsStore.deleteDocument(doc.uuid)
     success('Документ удален')
   } catch (e) {
     error('Ошибка удаления')
+  }
+}
+
+function isPreviewable(doc) {
+  const mime = doc.mime_type || ''
+  return mime === 'application/pdf' || mime.startsWith('image/')
+}
+
+async function previewDoc(doc) {
+  try {
+    const { data } = await api.get(`/api/v1/documents/${doc.uuid}/download/`, { responseType: 'blob' })
+    // тип blob'а важен: без него iframe не отрисует PDF
+    const blob = new Blob([data], { type: doc.mime_type || 'application/octet-stream' })
+    releasePreview()
+    previewUrl.value = URL.createObjectURL(blob)
+    previewKind.value = doc.mime_type === 'application/pdf' ? 'pdf' : 'image'
+    previewTitle.value = doc.title
+    previewDialog.value = true
+  } catch {
+    error('Не удалось загрузить файл для просмотра')
+  }
+}
+
+function releasePreview() {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
+  }
+}
+
+async function loadLawyers() {
+  if (lawyers.value.length) return
+  const { data } = await api.get('/api/v1/users/lawyers/')
+  lawyers.value = data
+}
+
+async function openTaskDialog() {
+  taskDialog.value = true
+  try {
+    await loadLawyers()
+  } catch {
+    error('Не удалось загрузить список юристов')
+  }
+}
+
+async function createTask() {
+  if (!taskForm.value.title.trim()) return
+  taskSaving.value = true
+  try {
+    await api.post('/api/v1/tasks/', { ...taskForm.value, case: caseItem.value.id })
+    success('Задача создана')
+    taskDialog.value = false
+    taskForm.value = { title: '', description: '', assigned_to: null, due_date: null, priority: 'medium' }
+    await tasksStore.fetchTasks({ case: caseItem.value.id, page_size: 100 })
+  } catch {
+    error('Ошибка создания задачи')
+  } finally {
+    taskSaving.value = false
+  }
+}
+
+async function openAssignDialog() {
+  assignDialog.value = true
+  try {
+    await loadLawyers()
+  } catch {
+    error('Не удалось загрузить список юристов')
+  }
+}
+
+async function refreshCase() {
+  caseItem.value = await casesStore.fetchCase(route.params.id)
+}
+
+async function assignLawyer() {
+  if (!assignLawyerId.value) return
+  assignSaving.value = true
+  try {
+    await casesStore.assignLawyer(caseItem.value.uuid, assignLawyerId.value)
+    await refreshCase()
+    success('Юрист назначен')
+    assignDialog.value = false
+    assignLawyerId.value = null
+  } catch {
+    error('Ошибка назначения')
+  } finally {
+    assignSaving.value = false
+  }
+}
+
+async function unassignLawyer(lawyer) {
+  const ok = await confirmDlg(
+    'Снять юриста с дела?',
+    `${lawyer.last_name} ${lawyer.first_name} потеряет доступ к делу.`,
+    { confirmText: 'Снять', confirmColor: 'warning' },
+  )
+  if (!ok) return
+  try {
+    await casesStore.removeLawyer(caseItem.value.uuid, lawyer.id)
+    await refreshCase()
+    success('Юрист снят с дела')
+  } catch {
+    error('Ошибка')
+  }
+}
+
+async function deleteCase() {
+  const ok = await confirmDlg(
+    'Удалить дело?',
+    `«${caseItem.value.title}» и все связанные задачи, документы и записи времени будут удалены безвозвратно.`,
+  )
+  if (!ok) return
+  try {
+    await api.delete(`/api/v1/cases/${caseItem.value.uuid}/`)
+    success('Дело удалено')
+    router.push('/cases')
+  } catch (e) {
+    error(e.response?.data?.detail || 'Не удалось удалить дело')
   }
 }
 
@@ -585,7 +815,9 @@ async function addNote() {
 }
 
 async function deleteNote(id) {
-  if (!confirm('Удалить заметку?') || !caseItem.value) return
+  if (!caseItem.value) return
+  const ok = await confirmDlg('Удалить заметку?')
+  if (!ok) return
   try {
     await api.delete(`/api/v1/cases/${caseItem.value.id}/notes/${id}/`)
     notes.value = notes.value.filter(n => n.id !== id)

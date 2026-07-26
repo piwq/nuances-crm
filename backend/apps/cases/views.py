@@ -83,9 +83,14 @@ class CaseDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
     def perform_destroy(self, instance):
+        from django.db.models.deletion import ProtectedError
+        from rest_framework.exceptions import ValidationError
         uuid = instance.uuid
         title = instance.title
-        instance.delete()
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise ValidationError({'detail': 'Нельзя удалить дело с выставленными счетами.'})
         log_activity(
             user=self.request.user,
             action="DELETE",

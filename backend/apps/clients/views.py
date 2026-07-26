@@ -33,6 +33,21 @@ class ClientDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ClientSerializer
     lookup_field = 'uuid'
 
+    def get_permissions(self):
+        if self.request.method == 'DELETE':
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
+    def destroy(self, request, *args, **kwargs):
+        from django.db.models.deletion import ProtectedError
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {'detail': 'Нельзя удалить клиента, у которого есть дела.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     def perform_update(self, serializer):
         instance = serializer.save()
         log_activity(
