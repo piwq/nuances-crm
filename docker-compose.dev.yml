@@ -69,6 +69,20 @@ services:
     image: redis:7-alpine
     restart: "no"
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # пусто = относительные URL, всё ходит через этот же nginx
+        VITE_API_BASE_URL: ""
+    restart: "no"
+    volumes:
+      - ./frontend/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data_dev:
   media_files_dev:
