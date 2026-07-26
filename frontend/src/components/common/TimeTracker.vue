@@ -15,7 +15,7 @@
     </v-list-item>
 
     <!-- Start dialog -->
-    <v-dialog v-model="startDialog" max-width="400" persistent>
+    <v-dialog v-model="startDialog" max-width="400">
       <v-card>
         <v-card-title>Начать учёт времени</v-card-title>
         <v-divider />
@@ -44,7 +44,7 @@
     </v-dialog>
 
     <!-- Stop dialog -->
-    <v-dialog v-model="stopDialog" max-width="400" persistent>
+    <v-dialog v-model="stopDialog" max-width="400">
       <v-card>
         <v-card-title class="d-flex align-center gap-2">
           <v-icon color="error" class="blink">mdi-circle</v-icon>
