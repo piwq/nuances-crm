@@ -109,6 +109,118 @@ def cases_text(user):
     return '*Ваши дела:*\n' + block(lines)
 
 
+def cases_keyboard(user):
+    """Список дел кнопками: (текст, rows) для inline-клавиатуры."""
+    from apps.cases.models import Case
+    from common.scoping import scope_cases
+    cases = list(
+        scope_cases(Case.objects.filter(status__in=['new', 'active', 'on_hold']), user)
+        .order_by('-created_at')[:LIST_LIMIT]
+    )
+    if not cases:
+        return 'Открытых дел нет\\.', []
+    rows = []
+    for c in cases:
+        label = f'{c.case_number} · {c.title}'
+        if len(label) > 40:
+            label = label[:39] + '…'
+        rows.append([{'text': label, 'callback_data': f'case_info:{c.id}'}])
+    return '*Ваши дела* — нажмите, чтобы открыть карточку:', rows
+
+
+def _get_case_for_chat(chat_id, case_id):
+    from apps.cases.models import Case
+    from common.scoping import scope_cases
+    user = get_user_by_chat(chat_id)
+    if not user:
+        return None, None
+    case = scope_cases(
+        Case.objects.select_related('client', 'lead_lawyer'), user
+    ).filter(pk=case_id).first()
+    return user, case
+
+
+def case_info_text(chat_id, case_id):
+    """Карточка дела: (текст, rows) или (None, None), если дело недоступно."""
+    from apps.tasks.models import Task, Event
+    from django.utils import timezone
+
+    user, case = _get_case_for_chat(chat_id, case_id)
+    if not case:
+        return None, None
+
+    open_tasks = Task.objects.filter(
+        case=case, status__in=['todo', 'in_progress']).count()
+    next_event = (Event.objects.filter(case=case, start_datetime__gte=timezone.now())
+                  .order_by('start_datetime').first())
+
+    lines = [
+        f'💼 *{esc(case.title)}*',
+        f'`{esc(case.case_number)}` · {esc(case.get_status_display())} · {esc(case.get_category_display())}',
+        '',
+        f'👤 Клиент: {esc(case.client.display_name)}',
+    ]
+    if case.lead_lawyer:
+        lines.append(f'⭐️ Ведущий: {esc(case.lead_lawyer.get_full_name() or case.lead_lawyer.username)}')
+    if case.court_name:
+        court = case.court_name + (f', дело {case.court_case_number}' if case.court_case_number else '')
+        lines.append(f'🏛 Суд: {esc(court)}')
+    if case.opposing_party:
+        lines.append(f'⚔️ Оппонент: {esc(case.opposing_party)}')
+    if case.key_deadline:
+        note = f' — {case.key_deadline_note}' if case.key_deadline_note else ''
+        lines.append(f'⚖️ Срок: {_fmt_date(case.key_deadline)} \\({_days_left(case.key_deadline)}\\){esc(note)}')
+    lines.append(f'✅ Активных задач: {open_tasks}')
+    if next_event:
+        t = timezone.localtime(next_event.start_datetime).strftime('%d.%m %H:%M')
+        lines.append(f'📅 Ближайшее: {esc(t)} — {esc(next_event.title)}')
+
+    rows = [[
+        {'text': '✅ Задачи', 'callback_data': f'case_tasks:{case.id}'},
+        {'text': '📄 Документы', 'callback_data': f'case_docs:{case.id}'},
+    ], [
+        {'text': '⬅️ К списку дел', 'callback_data': 'cases_list'},
+    ]]
+    return '\n'.join(lines), rows
+
+
+def case_tasks_view(chat_id, case_id):
+    from apps.tasks.models import Task
+    user, case = _get_case_for_chat(chat_id, case_id)
+    if not case:
+        return None, None
+    tasks = list(Task.objects.filter(case=case, status__in=['todo', 'in_progress'])
+                 .order_by('due_date')[:LIST_LIMIT])
+    if tasks:
+        lines = []
+        for t in tasks:
+            line = f'▫️ {esc(t.title)}'
+            if t.due_date:
+                line += f' — до {_fmt_date(t.due_date)}'
+            if t.assigned_to:
+                line += f' \\({esc(t.assigned_to.get_full_name() or t.assigned_to.username)}\\)'
+            lines.append(line)
+        text = f'✅ *Задачи по делу* `{esc(case.case_number)}`:\n' + block(lines)
+    else:
+        text = f'По делу `{esc(case.case_number)}` активных задач нет 🎉'
+    rows = [[{'text': '⬅️ Назад к делу', 'callback_data': f'case_info:{case.id}'}]]
+    return text, rows
+
+
+def case_docs_view(chat_id, case_id):
+    user, case = _get_case_for_chat(chat_id, case_id)
+    if not case:
+        return None, None
+    docs = list(case.documents.order_by('-uploaded_at')[:LIST_LIMIT])
+    if docs:
+        lines = [f'▫️ {esc(d.title)} — {_fmt_date(d.uploaded_at.date())}' for d in docs]
+        text = f'📄 *Документы по делу* `{esc(case.case_number)}`:\n' + block(lines)
+    else:
+        text = f'По делу `{esc(case.case_number)}` документов нет\\.'
+    rows = [[{'text': '⬅️ Назад к делу', 'callback_data': f'case_info:{case.id}'}]]
+    return text, rows
+
+
 def deadlines_text(user):
     from apps.cases.models import Case
     from common.scoping import scope_cases
@@ -311,11 +423,29 @@ async def run_polling(token):
     from aiogram import Bot, Dispatcher, F
     from aiogram.filters import Command, CommandStart
     from aiogram.filters.command import CommandObject
-    from aiogram.types import Message, CallbackQuery, BotCommand
+    from aiogram.types import (
+        Message, CallbackQuery, BotCommand,
+        InlineKeyboardMarkup, InlineKeyboardButton,
+    )
 
     bot = Bot(token)
     dp = Dispatcher()
     MD = 'MarkdownV2'
+
+    def to_markup(rows):
+        if not rows:
+            return None
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=b['text'], callback_data=b['callback_data']) for b in row]
+            for row in rows
+        ])
+
+    async def edit_or_answer(cb: CallbackQuery, text, rows):
+        try:
+            await cb.message.edit_text(text, parse_mode=MD, reply_markup=to_markup(rows))
+        except Exception:  # noqa: BLE001 — «message is not modified» и устаревшие сообщения
+            await cb.message.answer(text, parse_mode=MD, reply_markup=to_markup(rows))
+        await cb.answer()
 
     # меню быстрого доступа Telegram (кнопка «/» у поля ввода);
     # регистрируем при каждом старте — меню всегда соответствует коду
@@ -368,7 +498,48 @@ async def run_polling(token):
 
     @dp.message(Command('cases'))
     async def cases(message: Message):
-        await reply_for(message, cases_text)
+        user = await sync_to_async(get_user_by_chat)(message.chat.id)
+        if not user:
+            await message.answer(NOT_LINKED_TEXT, parse_mode=MD)
+            return
+        text, rows = await sync_to_async(cases_keyboard)(user)
+        await message.answer(text, parse_mode=MD, reply_markup=to_markup(rows))
+
+    @dp.callback_query(F.data == 'cases_list')
+    async def cb_cases_list(cb: CallbackQuery):
+        user = await sync_to_async(get_user_by_chat)(cb.from_user.id)
+        if not user:
+            await cb.answer('Аккаунт не привязан.', show_alert=True)
+            return
+        text, rows = await sync_to_async(cases_keyboard)(user)
+        await edit_or_answer(cb, text, rows)
+
+    @dp.callback_query(F.data.startswith('case_info:'))
+    async def cb_case_info(cb: CallbackQuery):
+        case_id = cb.data.split(':', 1)[1]
+        text, rows = await sync_to_async(case_info_text)(cb.from_user.id, case_id)
+        if text is None:
+            await cb.answer('Дело недоступно.', show_alert=True)
+            return
+        await edit_or_answer(cb, text, rows)
+
+    @dp.callback_query(F.data.startswith('case_tasks:'))
+    async def cb_case_tasks(cb: CallbackQuery):
+        case_id = cb.data.split(':', 1)[1]
+        text, rows = await sync_to_async(case_tasks_view)(cb.from_user.id, case_id)
+        if text is None:
+            await cb.answer('Дело недоступно.', show_alert=True)
+            return
+        await edit_or_answer(cb, text, rows)
+
+    @dp.callback_query(F.data.startswith('case_docs:'))
+    async def cb_case_docs(cb: CallbackQuery):
+        case_id = cb.data.split(':', 1)[1]
+        text, rows = await sync_to_async(case_docs_view)(cb.from_user.id, case_id)
+        if text is None:
+            await cb.answer('Дело недоступно.', show_alert=True)
+            return
+        await edit_or_answer(cb, text, rows)
 
     @dp.message(Command('deadlines'))
     async def deadlines(message: Message):

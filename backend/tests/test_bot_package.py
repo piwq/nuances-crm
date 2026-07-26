@@ -8,6 +8,7 @@ from django.utils import timezone
 from apps.notifications.bot import (
     esc, expandable, tasks_text, deadlines_text, hours_text, find_text,
     today_digest_text, complete_task_via_chat, snooze_task_via_chat,
+    cases_keyboard, case_info_text, case_tasks_view, case_docs_view,
 )
 from apps.notifications.models import Notification
 
@@ -79,6 +80,45 @@ class TestBotTexts:
 
     def test_today_digest_empty_day(self, linked):
         assert '🎉' in today_digest_text(linked)
+
+
+@pytest.mark.django_db
+class TestCaseNavigation:
+    def test_cases_keyboard_buttons(self, linked, case_a):
+        text, rows = cases_keyboard(linked)
+        assert 'нажмите' in text
+        assert rows[0][0]['callback_data'] == f'case_info:{case_a.id}'
+        assert case_a.case_number in rows[0][0]['text']
+
+    def test_case_info_card(self, linked, case_a):
+        case_a.key_deadline = date.today() + timedelta(days=5)
+        case_a.opposing_party = 'ООО «Ромашка»'
+        case_a.save()
+        text, rows = case_info_text('777', case_a.id)
+        assert esc(case_a.case_number) in text
+        assert 'Ромашка' in text
+        assert '⚖️' in text
+        flat = [b['callback_data'] for row in rows for b in row]
+        assert f'case_tasks:{case_a.id}' in flat
+        assert f'case_docs:{case_a.id}' in flat
+        assert 'cases_list' in flat
+
+    def test_case_info_scoped(self, linked, lawyer_b, case_a):
+        lawyer_b.telegram_chat_id = '888'
+        lawyer_b.save(update_fields=['telegram_chat_id'])
+        assert case_info_text('888', case_a.id) == (None, None)
+        assert case_tasks_view('888', case_a.id) == (None, None)
+        assert case_docs_view('888', case_a.id) == (None, None)
+
+    def test_case_tasks_and_docs_views(self, linked, case_a):
+        from apps.tasks.models import Task
+        Task.objects.create(title='Подготовить отзыв', case=case_a,
+                            assigned_to=linked, created_by=linked)
+        text, rows = case_tasks_view('777', case_a.id)
+        assert 'Подготовить отзыв' in text
+        assert rows[0][0]['callback_data'] == f'case_info:{case_a.id}'
+        text, _ = case_docs_view('777', case_a.id)
+        assert 'документов нет' in text
 
 
 @pytest.mark.django_db
