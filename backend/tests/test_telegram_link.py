@@ -59,15 +59,16 @@ class TestBotTexts:
         assert get_user_by_chat(42) == lawyer_a
         assert get_user_by_chat(999) is None
 
+        from apps.notifications.bot import esc
         text = tasks_text(lawyer_a)
         assert 'Подать иск' in text
-        assert '01.08.2026' in text
-        assert case_a.case_number in text
+        assert esc('01.08.2026') in text
+        assert esc(case_a.case_number) in text
 
         text = cases_text(lawyer_a)
-        assert case_a.case_number in text
+        assert esc(case_a.case_number) in text
         assert 'Дело А' in text
 
         # у второго юриста пусто, и чужие данные не светятся
         assert tasks_text(lawyer_b) == 'Активных задач нет 🎉'
-        assert cases_text(lawyer_b) == 'Открытых дел нет.'
+        assert cases_text(lawyer_b) == 'Открытых дел нет\\.'

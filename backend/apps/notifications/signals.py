@@ -22,6 +22,10 @@ def notify_task_assignee(sender, instance, created, **kwargs):
         body=body,
         link=link,
         key=f'task_created_{instance.id}',
+        tg_buttons=[[
+            {'text': '✅ Выполнено', 'callback_data': f'task_done:{instance.id}'},
+            {'text': '⏰ +1 день', 'callback_data': f'task_snooze:{instance.id}'},
+        ]],
     )
 
 

@@ -18,6 +18,14 @@ def _locmem_email(settings):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_telegram(monkeypatch):
+    # в окружении боевой TELEGRAM_BOT_TOKEN — тесты не должны ходить в Bot API
+    monkeypatch.setattr(
+        'apps.notifications.telegram.send_telegram_message',
+        lambda *args, **kwargs: True)
+
+
+@pytest.fixture(autouse=True)
 def _inmemory_channel_layer(settings):
     # уведомления шлют group_send; в тестах Redis не нужен
     from channels.layers import channel_layers

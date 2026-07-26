@@ -54,6 +54,10 @@ class Command(BaseCommand):
                     body=body,
                     link=link,
                     key=key,
+                    tg_buttons=[[
+                        {'text': '✅ Выполнено', 'callback_data': f'task_done:{task.id}'},
+                        {'text': '⏰ +1 день', 'callback_data': f'task_snooze:{task.id}'},
+                    ]],
                 )
                 if n:
                     created += 1

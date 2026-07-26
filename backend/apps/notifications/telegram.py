@@ -35,19 +35,26 @@ def get_bot_username():
     return _BOT_USERNAME
 
 
-def send_telegram_message(chat_id, text):
-    """Отправить сообщение пользователю. Возвращает True при успехе."""
+def send_telegram_message(chat_id, text, parse_mode='HTML', reply_markup=None):
+    """Отправить сообщение пользователю. Возвращает True при успехе.
+
+    reply_markup — dict-инлайн-клавиатура Bot API, например
+    {'inline_keyboard': [[{'text': '...', 'callback_data': '...'}]]}.
+    """
     token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
     if not token or not chat_id:
         return False
 
     url = f'https://api.telegram.org/bot{token}/sendMessage'
-    payload = urllib.parse.urlencode({
+    fields = {
         'chat_id': chat_id,
         'text': text,
-        'parse_mode': 'HTML',
+        'parse_mode': parse_mode,
         'disable_web_page_preview': 'true',
-    }).encode()
+    }
+    if reply_markup:
+        fields['reply_markup'] = json.dumps(reply_markup)
+    payload = urllib.parse.urlencode(fields).encode()
 
     try:
         req = urllib.request.Request(url, data=payload)
