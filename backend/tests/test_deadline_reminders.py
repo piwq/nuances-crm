@@ -20,6 +20,8 @@ def test_case_deadline_reminder_created_once(case_a, lawyer_a):
     case_a.key_deadline = date.today() + timedelta(days=3)
     case_a.status = 'active'
     case_a.save()
+    # сигналы о назначении/переносе срока к этому тесту не относятся
+    Notification.objects.all().delete()
 
     call_command('send_deadline_reminders')
     notes = Notification.objects.filter(user=lawyer_a)

@@ -54,7 +54,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Save message to database
         saved_message = await self.save_message(self.user, self.recipient_id, message_text)
-        
+        if saved_message is None:
+            return
+
         # Broadcast message to room group
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -85,7 +87,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         from django.contrib.auth import get_user_model
         
         User = get_user_model()
-        recipient = User.objects.get(id=recipient_id)
-        
+        try:
+            recipient = User.objects.get(id=recipient_id)
+        except (User.DoesNotExist, ValueError):
+            return None  # битый recipient_id не должен ронять consumer
+
         msg = ChatMessage.objects.create(user=user, recipient=recipient, text=text)
         return ChatMessageSerializer(msg).data
