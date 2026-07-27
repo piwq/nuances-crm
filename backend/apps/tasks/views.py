@@ -1,7 +1,7 @@
 from datetime import datetime
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 import django_filters
 from django.utils import timezone
@@ -75,6 +75,26 @@ def complete_task_view(request, pk):
     task.completed_at = timezone.now()
     task.save(update_fields=['status', 'completed_at', 'updated_at'])
     return Response(TaskSerializer(task, context={'request': request}).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # доступ даёт сам секретный токен в URL
+def calendar_feed_view(request, token):
+    """ICS-подписка: календарь пользователя для телефона/Google Calendar."""
+    from django.http import HttpResponse, Http404
+    from apps.accounts.models import CustomUser
+    from .icalendar import build_calendar, user_calendar_events
+
+    user = CustomUser.objects.filter(calendar_token=token, is_active=True).first()
+    if not user:
+        raise Http404
+
+    name = f'CRM «Нюансы» — {user.get_full_name() or user.username}'
+    body = build_calendar(name, user_calendar_events(user))
+    response = HttpResponse(body, content_type='text/calendar; charset=utf-8')
+    response['Content-Disposition'] = 'inline; filename="nuances.ics"'
+    response['Cache-Control'] = 'no-cache'
+    return response
 
 
 class EventFilter(django_filters.FilterSet):

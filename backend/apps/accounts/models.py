@@ -17,6 +17,10 @@ class CustomUser(AbstractUser):
         max_length=50, blank=True, verbose_name='Telegram chat ID',
         help_text='Для получения уведомлений в Telegram',
     )
+    calendar_token = models.UUIDField(
+        null=True, blank=True, unique=True, verbose_name='Токен ICS-подписки',
+        help_text='Секретная ссылка на календарь; отзывается перевыпуском',
+    )
 
     class Meta:
         db_table = 'accounts_user'

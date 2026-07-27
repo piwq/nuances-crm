@@ -7,4 +7,5 @@ urlpatterns = [
     path('tasks/<int:pk>/complete/', views.complete_task_view, name='task-complete'),
     path('events/', views.EventListCreateView.as_view(), name='event-list'),
     path('events/<int:pk>/', views.EventDetailView.as_view(), name='event-detail'),
+    path('calendar/<uuid:token>.ics', views.calendar_feed_view, name='calendar-feed'),
 ]

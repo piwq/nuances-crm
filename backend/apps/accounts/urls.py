@@ -11,4 +11,5 @@ urlpatterns = [
     path('users/lawyers/', views.lawyers_list_view, name='user-lawyers'),
     path('auth/change-password/', views.change_password_view, name='auth-change-password'),
     path('auth/telegram-link/', views.telegram_link_view, name='auth-telegram-link'),
+    path('auth/calendar-link/', views.calendar_link_view, name='auth-calendar-link'),
 ]

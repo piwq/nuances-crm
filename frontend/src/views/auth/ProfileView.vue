@@ -99,6 +99,42 @@
                     </v-btn>
                   </div>
                 </v-col>
+
+                <v-col cols="12">
+                  <v-divider class="mb-4" />
+                  <div class="d-flex align-center gap-3 flex-wrap mb-2">
+                    <v-btn
+                      color="primary"
+                      variant="tonal"
+                      prepend-icon="mdi-calendar-sync"
+                      :loading="calendarLoading"
+                      @click="getCalendarLink"
+                    >
+                      {{ calendarUrl ? 'Перевыпустить ссылку' : 'Подписка на календарь' }}
+                    </v-btn>
+                    <span class="text-body-2 text-medium-emphasis">
+                      Заседания, сроки и задачи в вашем телефоне
+                    </span>
+                    <v-btn v-if="calendarUrl" variant="text" size="small" @click="revokeCalendar">
+                      Отключить
+                    </v-btn>
+                  </div>
+                  <v-alert v-if="calendarUrl" type="info" variant="tonal" density="comfortable">
+                    <div class="text-body-2 mb-2">
+                      Добавьте эту ссылку в календарь телефона
+                      («Другие календари» → «Подписаться по URL»). Ссылка секретная — не пересылайте её.
+                    </div>
+                    <v-text-field
+                      :model-value="calendarUrl"
+                      readonly
+                      density="compact"
+                      hide-details
+                      variant="outlined"
+                      append-inner-icon="mdi-content-copy"
+                      @click:append-inner="copyCalendarUrl"
+                    />
+                  </v-alert>
+                </v-col>
               </v-row>
               <div class="d-flex justify-end mt-4">
                 <v-btn type="submit" color="primary" :loading="loading">Сохранить</v-btn>
@@ -156,6 +192,8 @@ const activeTab = ref('profile')
 const loading = ref(false)
 const passwordLoading = ref(false)
 const tgLinking = ref(false)
+const calendarLoading = ref(false)
+const calendarUrl = ref('')
 const avatarFile = ref(null)
 const profileFormRef = ref(null)
 const passwordFormRef = ref(null)
@@ -232,6 +270,7 @@ onMounted(() => {
       telegram_chat_id: auth.user.telegram_chat_id || ''
     }
   }
+  loadCalendarLink()
 })
 
 async function handleUpdateProfile() {
@@ -246,6 +285,48 @@ async function handleUpdateProfile() {
     showNotification('Ошибка при обновлении профиля', 'error')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadCalendarLink() {
+  try {
+    const { data } = await api.get('/api/v1/auth/calendar-link/')
+    calendarUrl.value = data.url
+  } catch {
+    calendarUrl.value = ''  // подписки ещё нет
+  }
+}
+
+async function getCalendarLink() {
+  calendarLoading.value = true
+  try {
+    const { data } = await api.post('/api/v1/auth/calendar-link/',
+      calendarUrl.value ? { regenerate: true } : {})
+    calendarUrl.value = data.url
+    showNotification(calendarUrl.value ? 'Ссылка готова' : 'Ссылка создана', 'success')
+  } catch {
+    showNotification('Не удалось получить ссылку', 'error')
+  } finally {
+    calendarLoading.value = false
+  }
+}
+
+async function revokeCalendar() {
+  try {
+    await api.delete('/api/v1/auth/calendar-link/')
+    calendarUrl.value = ''
+    showNotification('Подписка отключена', 'success')
+  } catch {
+    showNotification('Ошибка', 'error')
+  }
+}
+
+async function copyCalendarUrl() {
+  try {
+    await navigator.clipboard.writeText(calendarUrl.value)
+    showNotification('Ссылка скопирована', 'success')
+  } catch {
+    showNotification('Скопируйте ссылку вручную', 'info')
   }
 }
 

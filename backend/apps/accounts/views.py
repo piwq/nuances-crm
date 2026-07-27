@@ -104,6 +104,33 @@ def telegram_link_view(request):
     return Response({'link': f'https://t.me/{username}?start={token}'})
 
 
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def calendar_link_view(request):
+    """GET — текущая ссылка ICS-подписки (404, если нет),
+    POST — выдать или перевыпустить, DELETE — отозвать."""
+    import uuid as uuid_lib
+
+    if request.method == 'GET':
+        if not request.user.calendar_token:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        path = f'/api/v1/calendar/{request.user.calendar_token}.ics'
+        return Response({'path': path, 'url': request.build_absolute_uri(path)})
+
+    if request.method == 'DELETE':
+        request.user.calendar_token = None
+        request.user.save(update_fields=['calendar_token'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # перевыпуск по требованию: старая ссылка сразу перестаёт работать
+    if request.user.calendar_token is None or request.data.get('regenerate'):
+        request.user.calendar_token = uuid_lib.uuid4()
+        request.user.save(update_fields=['calendar_token'])
+
+    path = f'/api/v1/calendar/{request.user.calendar_token}.ics'
+    return Response({'path': path, 'url': request.build_absolute_uri(path)})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def lawyers_list_view(request):
