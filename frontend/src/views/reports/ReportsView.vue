@@ -58,6 +58,45 @@
         </v-col>
       </v-row>
 
+      <!-- Expenses -->
+      <v-row v-if="expenses.total" class="mb-6">
+        <v-col cols="12" md="4">
+          <v-card>
+            <v-card-text>
+              <div class="text-caption text-medium-emphasis">Расходы по делам</div>
+              <div class="text-h4 font-weight-bold text-warning mt-1">{{ formatCurrency(expenses.total) }}</div>
+              <div class="text-caption mt-1">
+                перевыставляется клиентам: {{ formatCurrency(expenses.billable) }}
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+        <v-col cols="12" md="4">
+          <v-card>
+            <v-card-text>
+              <div class="text-caption text-medium-emphasis">Ждут перевыставления</div>
+              <div class="text-h4 font-weight-bold mt-1"
+                   :class="expenses.pending_rebill ? 'text-error' : 'text-medium-emphasis'">
+                {{ formatCurrency(expenses.pending_rebill) }}
+              </div>
+              <div class="text-caption mt-1">ещё не попали ни в один счёт</div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+        <v-col cols="12" md="4">
+          <v-card>
+            <v-card-title class="text-body-1">Структура расходов</v-card-title>
+            <v-card-text>
+              <div v-for="row in expenses.by_category" :key="row.category"
+                   class="d-flex justify-space-between text-body-2 mb-1">
+                <span class="text-medium-emphasis">{{ row.label }}</span>
+                <span class="font-weight-medium">{{ formatCurrency(row.total) }}</span>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
       <v-row class="mb-6">
         <!-- Revenue chart -->
         <v-col cols="12" md="8">
@@ -169,6 +208,9 @@ const totalRevenue = computed(() => (data.value?.revenue_by_month || []).reduce(
 const totalHours = computed(() => (data.value?.revenue_by_month || []).reduce((s, r) => s + r.total_hours, 0))
 const paidAmount = computed(() => data.value?.invoices_summary?.paid?.total || 0)
 const paidCount = computed(() => data.value?.invoices_summary?.paid?.count || 0)
+const expenses = computed(() => data.value?.expenses || {
+  total: 0, billable: 0, pending_rebill: 0, by_category: [],
+})
 
 const revenueChartData = computed(() => {
   const rows = data.value?.revenue_by_month

@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from common.scoping import scope_cases, scope_by_case
-from .models import TimeEntry, Invoice
+from .models import TimeEntry, Invoice, CaseExpense
 from apps.cases.models import Case
 
 
@@ -80,6 +80,26 @@ def reports_view(request):
         .annotate(count=Count('id', distinct=True), total=Sum('total'))
     }
 
+    # Expenses: сколько потрачено по делам и сколько из этого вернётся
+    expenses_qs = CaseExpense.objects.filter(
+        case__in=cases_qs.values('pk'), date__gte=date_from)
+    expenses_by_category = [
+        {
+            'category': row['category'],
+            'label': dict(CaseExpense.CATEGORY_CHOICES).get(row['category'], row['category']),
+            'total': float(row['total'] or 0),
+        }
+        for row in expenses_qs.values('category').annotate(total=Sum('amount')).order_by('-total')
+    ]
+    expenses_summary = {
+        'total': float(expenses_qs.aggregate(s=Sum('amount'))['s'] or 0),
+        'billable': float(expenses_qs.filter(is_billable=True)
+                          .aggregate(s=Sum('amount'))['s'] or 0),
+        'pending_rebill': float(expenses_qs.filter(is_billable=True, invoice__isnull=True)
+                                .aggregate(s=Sum('amount'))['s'] or 0),
+        'by_category': expenses_by_category,
+    }
+
     # Overdue invoices count
     overdue_count = invoices_qs.filter(
         status__in=['sent', 'overdue'],
@@ -107,4 +127,5 @@ def reports_view(request):
         ],
         'invoices_summary': invoices_summary,
         'overdue_invoices': overdue_count,
+        'expenses': expenses_summary,
     })
