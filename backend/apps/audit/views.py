@@ -26,7 +26,7 @@ class RecentActivityView(generics.ListAPIView):
 
     def get_queryset(self):
         qs = ActivityLog.objects.select_related('user')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             from apps.cases.models import Case
             from apps.documents.models import Document
             from common.scoping import scope_cases

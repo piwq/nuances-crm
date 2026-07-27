@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from apps.accounts.models import CustomUser
 from common.scoping import user_can_access_case
 from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice
 
@@ -12,6 +13,12 @@ def _check_case_access(serializer, case):
 
 class TimeEntrySerializer(serializers.ModelSerializer):
     amount = serializers.ReadOnlyField()
+    # оба поля подставляются сервером (текущий пользователь и ставка дела),
+    # поэтому клиент (в т.ч. таймер) вправе их не присылать
+    lawyer = serializers.PrimaryKeyRelatedField(
+        queryset=CustomUser.objects.all(), required=False)
+    hourly_rate = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False)
     lawyer_name = serializers.SerializerMethodField()
     case_title = serializers.SerializerMethodField()
     is_invoiced = serializers.SerializerMethodField()
@@ -40,16 +47,16 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         # юрист пишет время только от своего имени; выбирать юриста может админ
         request = self.context.get('request')
-        if request and request.user.is_lawyer:
+        if request and request.user.is_scoped:
             attrs['lawyer'] = request.user
         return attrs
 
     def create(self, validated_data):
-        if 'lawyer' not in validated_data:
+        if not validated_data.get('lawyer'):
             validated_data['lawyer'] = self.context['request'].user
-        if 'hourly_rate' not in validated_data and validated_data.get('case'):
-            case = validated_data['case']
-            validated_data['hourly_rate'] = case.hourly_rate or 0
+        if validated_data.get('hourly_rate') is None:
+            case = validated_data.get('case')
+            validated_data['hourly_rate'] = (case.hourly_rate if case else None) or 0
         return super().create(validated_data)
 
 

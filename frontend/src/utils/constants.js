@@ -36,6 +36,14 @@ export const TASK_STATUSES = [
   { value: 'cancelled', label: 'Отменено', color: 'red' },
 ]
 
+export const TASK_RECURRENCES = [
+  { value: 'none', label: 'Не повторять' },
+  { value: 'weekly', label: 'Каждую неделю' },
+  { value: 'biweekly', label: 'Раз в две недели' },
+  { value: 'monthly', label: 'Каждый месяц' },
+  { value: 'quarterly', label: 'Раз в квартал' },
+]
+
 export const EVENT_TYPES = [
   { value: 'court_hearing', label: 'Судебное заседание', color: 'red' },
   { value: 'meeting', label: 'Встреча', color: 'blue' },
@@ -63,4 +71,9 @@ export const INVOICE_STATUSES = [
 export const USER_ROLES = [
   { value: 'admin', label: 'Администратор' },
   { value: 'lawyer', label: 'Юрист' },
+  { value: 'assistant', label: 'Помощник' },
 ]
+
+export function roleLabel(role) {
+  return USER_ROLES.find(r => r.value === role)?.label || role || ''
+}

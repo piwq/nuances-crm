@@ -6,11 +6,13 @@ from .models import Document, DocumentTemplate
 class DocumentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.SerializerMethodField()
     file_size_display = serializers.SerializerMethodField()
+    case_uuid = serializers.UUIDField(source='case.uuid', read_only=True)
+    case_title = serializers.CharField(source='case.title', read_only=True)
 
     class Meta:
         model = Document
         fields = [
-            'id', 'uuid', 'case', 'title', 'document_type', 'file',
+            'id', 'uuid', 'case', 'case_uuid', 'case_title', 'title', 'document_type', 'file',
             'file_size', 'file_size_display', 'mime_type', 'description',
             'uploaded_by', 'uploaded_by_name', 'uploaded_at', 'updated_at',
         ]

@@ -91,6 +91,34 @@
                 @click="navigate('/tasks')"
               />
             </div>
+
+            <!-- Documents -->
+            <div v-if="results.documents.length">
+              <div class="section-label">Документы</div>
+              <v-list-item
+                v-for="doc in results.documents"
+                :key="`d-${doc.id}`"
+                :title="doc.title"
+                :subtitle="doc.case_title || ''"
+                prepend-icon="mdi-file-document-outline"
+                density="compact"
+                @click="openDocument(doc)"
+              />
+            </div>
+
+            <!-- Invoices -->
+            <div v-if="results.invoices.length">
+              <div class="section-label">Счета</div>
+              <v-list-item
+                v-for="inv in results.invoices"
+                :key="`i-${inv.id}`"
+                :title="inv.invoice_number"
+                :subtitle="`${inv.client_name || ''} · ${inv.total} ₽`"
+                prepend-icon="mdi-receipt-text-outline"
+                density="compact"
+                @click="navigate(`/billing/invoices/${inv.id}`)"
+              />
+            </div>
           </template>
         </div>
       </v-card>
@@ -108,19 +136,21 @@ const router = useRouter()
 const show = ref(false)
 const query = ref('')
 const loading = ref(false)
-const results = ref({ clients: [], cases: [], tasks: [] })
+const results = ref(emptyResults())
+
+function emptyResults() {
+  return { clients: [], cases: [], tasks: [], documents: [], invoices: [] }
+}
 let searchTimeout = null
 
 const noResults = computed(() =>
   !loading.value && query.value &&
-  !results.value.clients.length &&
-  !results.value.cases.length &&
-  !results.value.tasks.length
+  Object.values(results.value).every(list => !list.length)
 )
 
 function open() {
   query.value = ''
-  results.value = { clients: [], cases: [], tasks: [] }
+  results.value = emptyResults()
   show.value = true
 }
 
@@ -129,10 +159,15 @@ function navigate(path) {
   router.push(path)
 }
 
+function openDocument(doc) {
+  // отдельной страницы документа нет — открываем дело, где он лежит
+  navigate(doc.case_uuid ? `/cases/${doc.case_uuid}` : '/cases')
+}
+
 function debouncedSearch() {
   clearTimeout(searchTimeout)
   if (!query.value?.trim()) {
-    results.value = { clients: [], cases: [], tasks: [] }
+    results.value = emptyResults()
     return
   }
   searchTimeout = setTimeout(doSearch, 300)
@@ -143,15 +178,23 @@ async function doSearch() {
   loading.value = true
   const q = query.value.trim()
   try {
-    const [clientsRes, casesRes, tasksRes] = await Promise.all([
-      api.get('/api/v1/clients/', { params: { search: q, page_size: 5 } }),
-      api.get('/api/v1/cases/', { params: { search: q, page_size: 5 } }),
-      api.get('/api/v1/tasks/', { params: { search: q, page_size: 5 } }),
+    const params = { search: q, page_size: 5 }
+    // allSettled: недоступный раздел (например, биллинг у помощника)
+    // не должен обнулять всю выдачу
+    const [clients, cases, tasks, documents, invoices] = await Promise.allSettled([
+      api.get('/api/v1/clients/', { params }),
+      api.get('/api/v1/cases/', { params }),
+      api.get('/api/v1/tasks/', { params }),
+      api.get('/api/v1/documents/', { params }),
+      api.get('/api/v1/billing/invoices/', { params }),
     ])
+    const rows = r => (r.status === 'fulfilled' ? r.value.data.results || [] : [])
     results.value = {
-      clients: clientsRes.data.results || [],
-      cases: casesRes.data.results || [],
-      tasks: tasksRes.data.results || [],
+      clients: rows(clients),
+      cases: rows(cases),
+      tasks: rows(tasks),
+      documents: rows(documents),
+      invoices: rows(invoices),
     }
   } catch {
     // silent

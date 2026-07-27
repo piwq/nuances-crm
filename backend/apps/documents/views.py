@@ -22,12 +22,13 @@ class DocumentFilter(django_filters.FilterSet):
 class DocumentListCreateView(generics.ListCreateAPIView):
     serializer_class = DocumentSerializer
     filterset_class = DocumentFilter
+    search_fields = ['title', 'description', 'case__title', 'case__case_number']
     ordering_fields = ['uploaded_at', 'title']
     ordering = ['-uploaded_at']
 
     def get_queryset(self):
         qs = Document.objects.select_related('uploaded_by', 'case')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             from django.db.models import Q
             qs = qs.filter(
                 Q(case__assigned_lawyers=self.request.user) | Q(case__lead_lawyer=self.request.user)
@@ -126,7 +127,7 @@ def generate_from_template_view(request):
     except (DocumentTemplate.DoesNotExist, Case.DoesNotExist):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         if not (case.assigned_lawyers.filter(pk=request.user.pk).exists() or
                 case.lead_lawyer_id == request.user.pk):
             return Response(status=status.HTTP_403_FORBIDDEN)
@@ -175,7 +176,7 @@ def document_download_view(request, uuid):
     except Document.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         case = doc.case
         if not (case.assigned_lawyers.filter(pk=request.user.pk).exists() or
                 case.lead_lawyer_id == request.user.pk):

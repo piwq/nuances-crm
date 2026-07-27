@@ -44,6 +44,19 @@ class TestTimeEntryScoping:
             'hours': '1.00', 'description': 'x', 'hourly_rate': '1000.00'})
         assert resp.status_code == 400
 
+    def test_timer_payload_without_lawyer_and_rate(self, api, lawyer_a, case_a):
+        # регрессия: таймер шлёт только case/date/hours/description —
+        # обязательные lawyer и hourly_rate давали 400 на каждой записи
+        case_a.hourly_rate = Decimal('3000.00')
+        case_a.save()
+        api.force_authenticate(lawyer_a)
+        resp = api.post('/api/v1/billing/time-entries/', {
+            'case': case_a.id, 'date': str(date.today()),
+            'hours': '0.75', 'description': 'Звонок клиенту', 'is_billable': True})
+        assert resp.status_code == 201, resp.data
+        assert resp.data['lawyer'] == lawyer_a.id
+        assert Decimal(resp.data['hourly_rate']) == Decimal('3000.00')  # ставка из дела
+
     def test_lawyer_entry_forced_to_self(self, api, lawyer_a, lawyer_b, case_a):
         # юрист подставляет чужого исполнителя — запись всё равно пишется от его имени
         api.force_authenticate(lawyer_a)

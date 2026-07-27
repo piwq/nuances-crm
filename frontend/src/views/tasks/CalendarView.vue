@@ -178,6 +178,24 @@ function fromISO(isoStr) {
   return { date, time }
 }
 
+async function handleEventMove(info) {
+  // перетаскивание/растягивание события прямо в сетке календаря
+  const ev = info.event
+  const allDay = ev.allDay
+  const payload = {
+    all_day: allDay,
+    start_datetime: allDay ? ev.startStr.slice(0, 10) : ev.start.toISOString(),
+    end_datetime: ev.end ? (allDay ? ev.endStr.slice(0, 10) : ev.end.toISOString()) : null,
+  }
+  try {
+    await store.updateEvent(Number(ev.id), payload)
+    success('Событие перенесено')
+  } catch {
+    info.revert()
+    error('Не удалось перенести событие')
+  }
+}
+
 function buildPayload() {
   const start = toISO(form.value.start_date, form.value.start_time, form.value.all_day)
   const end = form.value.end_date
@@ -290,7 +308,9 @@ const calendarOptions = {
   buttonText: { today: 'Сегодня', month: 'Месяц', week: 'Неделя', list: 'Список' },
   height: 'auto',
   selectable: true,
-  editable: false,
+  editable: true,
+  eventDrop: handleEventMove,
+  eventResize: handleEventMove,
   events: async (fetchInfo, successCb, failureCb) => {
     try {
       await store.fetchEvents(fetchInfo.startStr, fetchInfo.endStr)

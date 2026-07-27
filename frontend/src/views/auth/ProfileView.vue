@@ -19,7 +19,7 @@
         <div class="mt-4">
           <h2 class="text-h5 font-weight-bold">{{ auth.user?.full_name }}</h2>
           <p class="text-subtitle-1 text-medium-emphasis">@{{ auth.user?.username }}</p>
-          <v-chip color="primary" class="mt-2">{{ auth.user?.role === 'admin' ? 'Администратор' : 'Юрист' }}</v-chip>
+          <v-chip color="primary" class="mt-2">{{ roleLabel(auth.user?.role) }}</v-chip>
         </div>
       </v-card>
     </v-col>
@@ -180,6 +180,7 @@
 </template>
 
 <script setup>
+import { roleLabel } from '@/utils/constants'
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotification } from '@/composables/useNotification'

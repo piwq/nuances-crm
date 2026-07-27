@@ -50,7 +50,8 @@ class CaseSerializer(serializers.ModelSerializer):
             case.lead_lawyer = user
         case.save()
         case.assigned_lawyers.set(assigned_lawyers)
-        if user.is_lawyer and case.lead_lawyer_id != user.pk and \
+        # помощник ведущим не становится, но доступ к заведённому делу сохраняет
+        if user.is_scoped and case.lead_lawyer_id != user.pk and \
                 not case.assigned_lawyers.filter(pk=user.pk).exists():
             case.assigned_lawyers.add(user)
         return case

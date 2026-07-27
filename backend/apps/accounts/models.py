@@ -5,9 +5,11 @@ from django.db import models
 class CustomUser(AbstractUser):
     ROLE_ADMIN = 'admin'
     ROLE_LAWYER = 'lawyer'
+    ROLE_ASSISTANT = 'assistant'
     ROLE_CHOICES = [
         (ROLE_ADMIN, 'Администратор'),
         (ROLE_LAWYER, 'Юрист'),
+        (ROLE_ASSISTANT, 'Помощник'),
     ]
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_LAWYER, verbose_name='Роль')
@@ -37,6 +39,19 @@ class CustomUser(AbstractUser):
     @property
     def is_lawyer(self):
         return self.role == self.ROLE_LAWYER
+
+    @property
+    def is_assistant(self):
+        return self.role == self.ROLE_ASSISTANT
+
+    @property
+    def is_scoped(self):
+        """Видит только свои дела: все, кроме администратора.
+
+        Скоупинг завязан именно на это свойство, а не на is_lawyer —
+        иначе новая роль по умолчанию получила бы доступ ко всему.
+        """
+        return not self.is_admin
 
 
 class TelegramLinkToken(models.Model):

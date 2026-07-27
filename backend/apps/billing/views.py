@@ -9,7 +9,7 @@ import django_filters
 from django.db.models import Sum, Count, Q, F, DecimalField
 from django.db.models.functions import TruncMonth
 
-from common.permissions import IsAdmin
+from common.permissions import IsAdmin, IsLawyerOrAdmin
 from common.scoping import scope_by_case
 from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice
 from .serializers import (
@@ -36,7 +36,7 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = TimeEntry.objects.select_related('case', 'lawyer')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             qs = qs.filter(lawyer=self.request.user)
         return qs
 
@@ -46,7 +46,7 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         qs = TimeEntry.objects.select_related('case', 'lawyer')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             qs = qs.filter(lawyer=self.request.user)
         return qs
 
@@ -56,7 +56,7 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
 def time_entry_summary_view(request):
     from django.db.models import Q
     qs = TimeEntry.objects.filter(is_billable=True)
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         qs = qs.filter(lawyer=request.user)
 
     case_id = request.query_params.get('case')
@@ -78,7 +78,10 @@ class InvoiceFilter(django_filters.FilterSet):
 
 
 class InvoiceListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsLawyerOrAdmin]
     filterset_class = InvoiceFilter
+    search_fields = ['invoice_number', 'case__title', 'client__last_name',
+                     'client__company_name']
     ordering_fields = ['issue_date', 'due_date', 'total']
     ordering = ['-created_at']
 
@@ -90,7 +93,7 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         # просрочку проставляет планировщик (mark_overdue_invoices)
         qs = Invoice.objects.select_related('case', 'client')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             from django.db.models import Q
             qs = qs.filter(
                 Q(case__assigned_lawyers=self.request.user) | Q(case__lead_lawyer=self.request.user)
@@ -111,7 +114,7 @@ class InvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method == 'DELETE':
             return [IsAdmin()]
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsLawyerOrAdmin()]
 
 
 def _get_invoice_or_none(request, pk, qs=None):
@@ -123,7 +126,7 @@ def _get_invoice_or_none(request, pk, qs=None):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsLawyerOrAdmin])
 def generate_from_entries_view(request, pk):
     """Auto-create InvoiceItems from unbilled time entries of the invoice's case."""
     invoice = _get_invoice_or_none(request, pk)
@@ -156,7 +159,7 @@ def generate_from_entries_view(request, pk):
 
 
 @api_view(['PATCH'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsLawyerOrAdmin])
 def mark_sent_view(request, pk):
     invoice = _get_invoice_or_none(request, pk)
     if invoice is None:
@@ -167,7 +170,7 @@ def mark_sent_view(request, pk):
 
 
 @api_view(['PATCH'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsLawyerOrAdmin])
 def mark_paid_view(request, pk):
     """Полная оплата: регистрирует платёж на весь остаток.
 
@@ -197,6 +200,7 @@ def mark_paid_view(request, pk):
 
 
 class RecurringInvoiceListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsLawyerOrAdmin]
     serializer_class = RecurringInvoiceSerializer
     filterset_fields = ['case', 'is_active']
 
@@ -206,6 +210,7 @@ class RecurringInvoiceListCreateView(generics.ListCreateAPIView):
 
 
 class RecurringInvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsLawyerOrAdmin]
     serializer_class = RecurringInvoiceSerializer
 
     def get_queryset(self):
@@ -213,7 +218,7 @@ class RecurringInvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsLawyerOrAdmin])
 def recurring_run_now_view(request, pk):
     """Выставить очередной счёт по правилу вручную, не дожидаясь расписания."""
     rule = scope_by_case(RecurringInvoice.objects.all(), request.user).filter(pk=pk).first()
@@ -228,6 +233,7 @@ def recurring_run_now_view(request, pk):
 
 
 class InvoicePaymentListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsLawyerOrAdmin]
     serializer_class = InvoicePaymentSerializer
 
     def get_queryset(self):
@@ -243,6 +249,7 @@ class InvoicePaymentListCreateView(generics.ListCreateAPIView):
 
 
 class InvoicePaymentDetailView(generics.RetrieveDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsLawyerOrAdmin]
     serializer_class = InvoicePaymentSerializer
 
     def get_queryset(self):
@@ -265,7 +272,7 @@ def billing_monthly_stats_view(request):
                         status=status.HTTP_400_BAD_REQUEST)
     months = max(1, min(months, 24))
     qs = TimeEntry.objects.filter(is_billable=True)
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         qs = qs.filter(lawyer=request.user)
     rows = (
         qs.annotate(month=TruncMonth('date'))
@@ -288,6 +295,7 @@ def billing_monthly_stats_view(request):
 
 
 class InvoiceItemListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsLawyerOrAdmin]
     serializer_class = InvoiceItemSerializer
 
     def get_queryset(self):
@@ -300,6 +308,7 @@ class InvoiceItemListCreateView(generics.ListCreateAPIView):
 
 
 class InvoiceItemDetailView(generics.RetrieveDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsLawyerOrAdmin]
     serializer_class = InvoiceItemSerializer
 
     def get_queryset(self):
@@ -316,7 +325,7 @@ class InvoiceItemDetailView(generics.RetrieveDestroyAPIView):
 @permission_classes([IsAuthenticated])
 def time_entries_csv_view(request):
     qs = TimeEntry.objects.select_related('case', 'lawyer')
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         qs = qs.filter(lawyer=request.user)
     qs = TimeEntryFilter(request.query_params, queryset=qs).qs.order_by('-date')
 
@@ -337,7 +346,7 @@ def time_entries_csv_view(request):
 @permission_classes([IsAuthenticated])
 def invoices_csv_view(request):
     qs = Invoice.objects.select_related('case', 'client')
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         qs = qs.filter(
             Q(case__assigned_lawyers=request.user) | Q(case__lead_lawyer=request.user)
         ).distinct()
@@ -357,7 +366,7 @@ def invoices_csv_view(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsLawyerOrAdmin])
 def send_invoice_email_view(request, pk):
     invoice = _get_invoice_or_none(
         request, pk, Invoice.objects.prefetch_related('items').select_related('case', 'client'))

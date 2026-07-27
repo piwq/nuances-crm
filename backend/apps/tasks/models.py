@@ -49,9 +49,26 @@ class Task(models.Model):
         null=True,
         related_name='created_tasks',
     )
+    RECUR_NONE = 'none'
+    RECUR_WEEKLY = 'weekly'
+    RECUR_BIWEEKLY = 'biweekly'
+    RECUR_MONTHLY = 'monthly'
+    RECUR_QUARTERLY = 'quarterly'
+    RECUR_CHOICES = [
+        (RECUR_NONE, 'Не повторять'),
+        (RECUR_WEEKLY, 'Каждую неделю'),
+        (RECUR_BIWEEKLY, 'Раз в две недели'),
+        (RECUR_MONTHLY, 'Каждый месяц'),
+        (RECUR_QUARTERLY, 'Раз в квартал'),
+    ]
+
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_TODO)
     due_date = models.DateField(null=True, blank=True, verbose_name='Срок')
+    recurrence = models.CharField(
+        max_length=20, choices=RECUR_CHOICES, default=RECUR_NONE,
+        verbose_name='Повторение',
+        help_text='После выполнения автоматически создаётся следующая задача')
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -63,6 +80,36 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+    def spawn_next(self):
+        """Создать следующую задачу серии. Возвращает Task или None."""
+        from datetime import date, timedelta
+
+        if self.recurrence == self.RECUR_NONE:
+            return None
+
+        base = self.due_date or date.today()
+        if self.recurrence == self.RECUR_WEEKLY:
+            nxt = base + timedelta(weeks=1)
+        elif self.recurrence == self.RECUR_BIWEEKLY:
+            nxt = base + timedelta(weeks=2)
+        else:
+            step = 3 if self.recurrence == self.RECUR_QUARTERLY else 1
+            total = base.year * 12 + (base.month - 1) + step
+            year, month = total // 12, total % 12 + 1
+            import calendar
+            nxt = date(year, month, min(base.day, calendar.monthrange(year, month)[1]))
+
+        return Task.objects.create(
+            title=self.title,
+            description=self.description,
+            case=self.case,
+            assigned_to=self.assigned_to,
+            created_by=self.created_by,
+            priority=self.priority,
+            due_date=nxt,
+            recurrence=self.recurrence,
+        )
 
 
 class Event(models.Model):

@@ -68,7 +68,7 @@
 
         <template #item.role="{ item }">
           <v-chip size="small" :color="item.role === 'admin' ? 'primary' : 'default'" variant="tonal">
-            {{ item.role === 'admin' ? 'Администратор' : 'Юрист' }}
+            {{ roleLabel(item.role) }}
           </v-chip>
         </template>
 
@@ -159,7 +159,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useNotification } from '@/composables/useNotification'
 import { formatDate } from '@/utils/formatters'
-import { USER_ROLES } from '@/utils/constants'
+import { USER_ROLES, roleLabel } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import api from '@/plugins/axios'
 import FormDialog from '@/components/common/FormDialog.vue'

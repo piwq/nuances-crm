@@ -15,6 +15,18 @@ class IsAdminOrReadOnly(BasePermission):
         return request.user.is_admin
 
 
+class IsLawyerOrAdmin(BasePermission):
+    """Финансовые операции: помощник может смотреть, но не менять."""
+    message = 'Помощник не может изменять биллинг.'
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return True
+        return not request.user.is_assistant
+
+
 class IsLawyerAssignedToCase(BasePermission):
     """For case-specific views: allow admin or assigned lawyer."""
 

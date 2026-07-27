@@ -92,7 +92,7 @@
             </v-avatar>
             <div class="sidebar-user-info">
               <div class="text-body-2 font-weight-semibold">{{ auth.user?.full_name || auth.user?.username }}</div>
-              <div class="text-caption text-medium-emphasis">{{ auth.user?.role === 'admin' ? 'Администратор' : 'Юрист' }}</div>
+              <div class="text-caption text-medium-emphasis">{{ roleLabel(auth.user?.role) }}</div>
             </div>
           </router-link>
           </v-expand-transition>
@@ -139,6 +139,7 @@
 </template>
 
 <script setup>
+import { roleLabel } from '@/utils/constants'
 import { ref, computed } from 'vue'
 import { useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'

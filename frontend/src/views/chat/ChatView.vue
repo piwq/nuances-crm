@@ -14,7 +14,7 @@
             :key="lawyer.id"
             :active="activeLawyer?.id === lawyer.id"
             :title="lawyer.full_name || lawyer.username"
-            :subtitle="lawyer.role === 'admin' ? 'Администратор' : 'Юрист'"
+            :subtitle="roleLabel(lawyer.role)"
             class="px-4 py-3"
             @click="selectLawyer(lawyer)"
           >
@@ -128,6 +128,7 @@
 </template>
 
 <script setup>
+import { roleLabel } from '@/utils/constants'
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotification } from '@/composables/useNotification'

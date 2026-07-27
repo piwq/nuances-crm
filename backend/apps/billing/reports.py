@@ -39,7 +39,7 @@ def reports_view(request):
     invoices_qs = Invoice.objects.filter(
         pk__in=scope_by_case(Invoice.objects.all(), request.user).values('pk'))
     entries_qs = TimeEntry.objects.filter(is_billable=True, date__gte=date_from)
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         entries_qs = entries_qs.filter(lawyer=request.user)
 
     # Cases by status

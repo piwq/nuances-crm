@@ -44,7 +44,7 @@ class CaseListCreateView(generics.ListCreateAPIView):
                 distinct=True,
             )
         )
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             qs = qs.filter(
                 Q(assigned_lawyers=self.request.user) | Q(lead_lawyer=self.request.user)
             ).distinct()
@@ -58,7 +58,7 @@ class CaseDetailView(generics.RetrieveUpdateDestroyAPIView):
         qs = Case.objects.select_related('client', 'lead_lawyer').prefetch_related(
             'assigned_lawyers', 'documents', 'tasks', 'time_entries'
         )
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             qs = qs.filter(
                 Q(assigned_lawyers=self.request.user) | Q(lead_lawyer=self.request.user)
             ).distinct()
@@ -152,7 +152,7 @@ def remove_lawyer_view(request, uuid, user_id):
 def change_status_view(request, uuid):
     try:
         qs = Case.objects.all()
-        if request.user.is_lawyer:
+        if request.user.is_scoped:
             qs = qs.filter(
                 Q(assigned_lawyers=request.user) | Q(lead_lawyer=request.user)
             ).distinct()
@@ -353,7 +353,7 @@ def conflict_check_view(request):
 @permission_classes([IsAuthenticated])
 def case_stats_view(request):
     qs = Case.objects.all()
-    if request.user.is_lawyer:
+    if request.user.is_scoped:
         qs = qs.filter(
             Q(assigned_lawyers=request.user) | Q(lead_lawyer=request.user)
         ).distinct()

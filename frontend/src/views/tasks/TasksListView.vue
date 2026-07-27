@@ -198,6 +198,17 @@
                   label="Срок"
                   class="mb-2" />
               </v-col>
+              <v-col cols="12">
+                <v-select
+                  v-model="form.recurrence"
+                  :items="TASK_RECURRENCES"
+                  item-title="label"
+                  item-value="value"
+                  label="Повторение"
+                  :hint="form.recurrence !== 'none' ? 'После выполнения автоматически создастся следующая задача' : ''"
+                  persistent-hint
+                />
+              </v-col>
             </v-row>
           </v-form>
         </v-card-text>
@@ -221,7 +232,7 @@ import { useTasksStore } from '@/stores/tasks'
 import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { formatDate } from '@/utils/formatters'
-import { TASK_PRIORITIES, TASK_STATUSES } from '@/utils/constants'
+import { TASK_PRIORITIES, TASK_STATUSES, TASK_RECURRENCES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import api from '@/plugins/axios'
@@ -250,7 +261,7 @@ const form = ref(emptyForm())
 const required = v => !!v || 'Обязательное поле'
 
 function emptyForm() {
-  return { title: '', description: '', case: null, assigned_to: null, priority: 'medium', status: 'todo', due_date: null }
+  return { title: '', description: '', case: null, assigned_to: null, priority: 'medium', status: 'todo', due_date: null, recurrence: 'none' }
 }
 
 const statusOptions = [{ value: '', title: 'Все' }, ...TASK_STATUSES.map(s => ({ value: s.value, title: s.label }))]

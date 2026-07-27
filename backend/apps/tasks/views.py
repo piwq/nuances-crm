@@ -28,7 +28,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Task.objects.select_related('case', 'assigned_to')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             from django.db.models import Q
             qs = qs.filter(
                 Q(assigned_to=self.request.user) |
@@ -43,7 +43,7 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         qs = Task.objects.select_related('case', 'assigned_to')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             from django.db.models import Q
             qs = qs.filter(
                 Q(assigned_to=self.request.user) |
@@ -59,7 +59,7 @@ def complete_task_view(request, pk):
     try:
         # Secure the object retrieval with IDOR check
         qs = Task.objects.all()
-        if request.user.is_lawyer:
+        if request.user.is_scoped:
             from django.db.models import Q
             qs = qs.filter(
                 Q(assigned_to=request.user) |
@@ -74,6 +74,7 @@ def complete_task_view(request, pk):
     task.status = Task.STATUS_DONE
     task.completed_at = timezone.now()
     task.save(update_fields=['status', 'completed_at', 'updated_at'])
+    task.spawn_next()  # повторяющаяся задача сразу порождает следующую
     return Response(TaskSerializer(task, context={'request': request}).data)
 
 
@@ -113,7 +114,7 @@ class EventListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Event.objects.select_related('case').prefetch_related('attendees')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             from django.db.models import Q
             qs = qs.filter(
                 Q(attendees=self.request.user) |
@@ -128,7 +129,7 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         qs = Event.objects.select_related('case').prefetch_related('attendees')
-        if self.request.user.is_lawyer:
+        if self.request.user.is_scoped:
             from django.db.models import Q
             qs = qs.filter(
                 Q(attendees=self.request.user) |
