@@ -26,8 +26,13 @@ USE_HTTPS = config('USE_HTTPS', default=False, cast=bool)  # noqa: F405
 
 SESSION_COOKIE_SECURE = USE_HTTPS
 CSRF_COOKIE_SECURE = USE_HTTPS
-SECURE_SSL_REDIRECT = USE_HTTPS
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') if USE_HTTPS else None
+
+# Редирект на HTTPS — отдельно от USE_HTTPS: пока в системе два входа
+# (https через VPN и http из локальной сети), принудительный редирект уводил
+# бы LAN-запросы на https://<IP>, где сертификата нет и быть не может.
+# Включать, когда локальный http-доступ станет не нужен.
+SECURE_SSL_REDIRECT = config('FORCE_SSL_REDIRECT', default=False, cast=bool)  # noqa: F405
 # HSTS ставится только при рабочем TLS: включить его на http — значит
 # заблокировать себе доступ к сайту до истечения срока в браузере
 SECURE_HSTS_SECONDS = 31536000 if USE_HTTPS else 0
