@@ -319,6 +319,71 @@ def case_timeline_view(request, uuid):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def case_dossier_view(request, uuid):
+    """Досье дела одним PDF — распечатать и взять в суд."""
+    from decimal import Decimal
+    from django.db.models import Sum, F, DecimalField
+    from django.http import HttpResponse
+    from django.template.loader import render_to_string
+    from django.utils import timezone
+    from apps.billing.models import Invoice
+
+    case = get_object_or_404(
+        scope_cases(Case.objects.select_related('client', 'lead_lawyer'), request.user),
+        uuid=uuid,
+    )
+
+    # алиасы не должны совпадать с именами полей: Sum('hours') as hours падает
+    time_stats = case.time_entries.aggregate(
+        total_hours=Sum('hours'),
+        total_amount=Sum(F('hours') * F('hourly_rate'),
+                         output_field=DecimalField(max_digits=14, decimal_places=2)))
+    expenses_total = case.expenses.aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    pending = case.expenses.filter(is_billable=True, invoice__isnull=True).aggregate(
+        s=Sum('amount'))['s'] or Decimal('0')
+
+    invoices = list(case.invoices.prefetch_related('payments'))
+    invoiced_total = sum((inv.total or Decimal('0')) for inv in invoices)
+    paid_total = sum(inv.paid_amount for inv in invoices)
+    outstanding = sum(inv.balance_due for inv in invoices
+                      if inv.status != Invoice.STATUS_CANCELLED and inv.balance_due > 0)
+
+    context = {
+        'case': case,
+        'lead_name': case.lead_lawyer.get_full_name() if case.lead_lawyer else '',
+        'team': ', '.join(u.get_full_name() or u.username
+                          for u in case.assigned_lawyers.all()),
+        'tasks': case.tasks.filter(status__in=['todo', 'in_progress'])
+                     .select_related('assigned_to').order_by('due_date')[:20],
+        'events': case.events.filter(start_datetime__gte=timezone.now())
+                      .order_by('start_datetime')[:10],
+        'documents': case.documents.order_by('-uploaded_at')[:20],
+        'notes': case.notes.select_related('author').order_by('-created_at')[:5],
+        'total_hours': time_stats['total_hours'] or 0,
+        'total_time_amount': time_stats['total_amount'] or 0,
+        'total_expenses': expenses_total,
+        'pending_expenses': pending,
+        'invoiced_total': invoiced_total,
+        'paid_total': paid_total,
+        'outstanding': outstanding,
+        'generated_at': timezone.localtime().strftime('%d.%m.%Y %H:%M'),
+    }
+
+    try:
+        import weasyprint
+        html = render_to_string('cases/case_dossier.html', context)
+        pdf = weasyprint.HTML(string=html).write_pdf()
+    except Exception as e:
+        return Response({'detail': f'Ошибка формирования досье: {e}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="case_{case.case_number}.pdf"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def conflict_check_view(request):
     """Проверка конфликта интересов по ФИО/названию и/или ИНН.
 

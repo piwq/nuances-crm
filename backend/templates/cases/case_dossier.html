@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 18mm 15mm; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #222; }
+  h1 { font-size: 18px; color: #2E3C56; margin: 0 0 2px; }
+  .sub { color: #7D7665; font-size: 11px; margin-bottom: 14px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #7A1E2B;
+       margin: 16px 0 6px; border-bottom: 1px solid #EAE6DA; padding-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 4px 6px; vertical-align: top; }
+  .facts td:first-child { color: #7D7665; width: 32%; }
+  .grid th { background: #F5F3EC; text-align: left; font-size: 10px; text-transform: uppercase;
+             color: #7D7665; letter-spacing: 0.5px; }
+  .grid td { border-bottom: 1px solid #EFEDE6; }
+  .deadline { background: #F3DDE0; border-left: 3px solid #7A1E2B; padding: 8px 10px; margin: 10px 0; }
+  .muted { color: #A9A292; }
+  .right { text-align: right; }
+  .note { border-left: 2px solid #EAE6DA; padding: 4px 8px; margin-bottom: 6px; }
+  .footer { position: fixed; bottom: -10mm; left: 0; right: 0; font-size: 9px;
+            color: #A9A292; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>{{ case.title }}</h1>
+<div class="sub">{{ case.case_number }} · {{ case.get_status_display }} · {{ case.get_category_display }}</div>
+
+{% if case.key_deadline %}
+<div class="deadline">
+  <strong>Процессуальный срок: {{ case.key_deadline|date:'d.m.Y' }}</strong>
+  {% if case.key_deadline_note %}<br>{{ case.key_deadline_note }}{% endif %}
+</div>
+{% endif %}
+
+<h2>Дело</h2>
+<table class="facts">
+  <tr><td>Клиент</td><td><strong>{{ case.client.display_name }}</strong>
+    {% if case.client.tax_id %} · ИНН {{ case.client.tax_id }}{% endif %}
+    {% if case.client.phone %}<br>{{ case.client.phone }}{% endif %}
+    {% if case.client.email %} · {{ case.client.email }}{% endif %}</td></tr>
+  {% if case.opposing_party %}
+  <tr><td>Противоположная сторона</td><td>{{ case.opposing_party }}
+    {% if case.opposing_party_inn %} · ИНН {{ case.opposing_party_inn }}{% endif %}</td></tr>
+  {% endif %}
+  {% if case.court_name %}
+  <tr><td>Суд</td><td>{{ case.court_name }}
+    {% if case.court_case_number %} · дело № {{ case.court_case_number }}{% endif %}</td></tr>
+  {% endif %}
+  <tr><td>Открыто</td><td>{{ case.opened_at|date:'d.m.Y' }}</td></tr>
+  {% if case.expected_close_date %}
+  <tr><td>Планируемое закрытие</td><td>{{ case.expected_close_date|date:'d.m.Y' }}</td></tr>
+  {% endif %}
+  <tr><td>Ответственный юрист</td><td>{{ lead_name|default:'—' }}</td></tr>
+  {% if team %}<tr><td>Команда</td><td>{{ team }}</td></tr>{% endif %}
+  {% if case.hourly_rate %}<tr><td>Ставка</td><td>{{ case.hourly_rate }} ₽/час</td></tr>{% endif %}
+</table>
+
+{% if case.description %}
+<h2>Описание</h2>
+<div>{{ case.description|linebreaksbr }}</div>
+{% endif %}
+
+<h2>Задачи в работе ({{ tasks|length }})</h2>
+{% if tasks %}
+<table class="grid">
+  <tr><th>Задача</th><th>Срок</th><th>Исполнитель</th><th>Приоритет</th></tr>
+  {% for t in tasks %}
+  <tr>
+    <td>{{ t.title }}</td>
+    <td>{{ t.due_date|date:'d.m.Y'|default:'—' }}</td>
+    <td>{{ t.assigned_to.get_full_name|default:'—' }}</td>
+    <td>{{ t.get_priority_display }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<div class="muted">Активных задач нет</div>{% endif %}
+
+<h2>Ближайшие события</h2>
+{% if events %}
+<table class="grid">
+  <tr><th>Когда</th><th>Событие</th><th>Место</th></tr>
+  {% for e in events %}
+  <tr>
+    <td>{{ e.start_datetime|date:'d.m.Y H:i' }}</td>
+    <td>{{ e.get_event_type_display }}: {{ e.title }}</td>
+    <td>{{ e.location|default:'—' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<div class="muted">Событий не запланировано</div>{% endif %}
+
+<h2>Документы ({{ documents|length }})</h2>
+{% if documents %}
+<table class="grid">
+  <tr><th>Название</th><th>Тип</th><th>Загружен</th></tr>
+  {% for d in documents %}
+  <tr><td>{{ d.title }}</td><td>{{ d.get_document_type_display }}</td>
+      <td>{{ d.uploaded_at|date:'d.m.Y' }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<div class="muted">Документов нет</div>{% endif %}
+
+<h2>Финансы</h2>
+<table class="facts">
+  <tr><td>Затрачено времени</td><td>{{ total_hours }} ч на сумму {{ total_time_amount }} ₽</td></tr>
+  <tr><td>Расходы по делу</td><td>{{ total_expenses }} ₽
+    {% if pending_expenses %}(к перевыставлению {{ pending_expenses }} ₽){% endif %}</td></tr>
+  <tr><td>Выставлено счетов</td><td>{{ invoiced_total }} ₽ · оплачено {{ paid_total }} ₽
+    {% if outstanding %}<strong>· остаток {{ outstanding }} ₽</strong>{% endif %}</td></tr>
+</table>
+
+{% if notes %}
+<h2>Последние заметки</h2>
+{% for n in notes %}
+<div class="note">
+  <div class="muted">{{ n.created_at|date:'d.m.Y H:i' }} · {{ n.author.get_full_name|default:'—' }}</div>
+  {{ n.text|linebreaksbr }}
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="footer">
+  Досье сформировано {{ generated_at }} · CRM «Нюансы» · для внутреннего использования
+</div>
+
+</body>
+</html>

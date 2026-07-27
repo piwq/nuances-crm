@@ -6,6 +6,10 @@
           <v-btn variant="outlined" prepend-icon="mdi-pencil" :to="`/cases/${caseItem.uuid}/edit`">
             Редактировать
           </v-btn>
+          <v-btn variant="outlined" prepend-icon="mdi-file-pdf-box" :loading="downloadingDossier"
+                 @click="downloadDossier">
+            Досье
+          </v-btn>
           <v-btn v-if="auth.isAdmin" color="error" variant="outlined" prepend-icon="mdi-delete-outline" @click="deleteCase">
             Удалить
           </v-btn>
@@ -689,6 +693,25 @@ const { confirm: confirmDlg } = useConfirmDialog()
 const caseItem = ref(null)
 const loading = ref(true)
 const statusChanging = ref(false)
+const downloadingDossier = ref(false)
+
+async function downloadDossier() {
+  downloadingDossier.value = true
+  try {
+    const { data } = await api.get(`/api/v1/cases/${caseItem.value.uuid}/dossier/`,
+                                   { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${caseItem.value.case_number}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    error('Не удалось сформировать досье')
+  } finally {
+    downloadingDossier.value = false
+  }
+}
 const tab = ref('info')
 const docDialog = ref(false)
 const newFile = ref(null)
