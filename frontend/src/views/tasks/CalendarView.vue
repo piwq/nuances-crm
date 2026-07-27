@@ -112,6 +112,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import ruLocale from '@fullcalendar/core/locales/ru'
+import { useDisplay } from 'vuetify'
 import { useEventsStore } from '@/stores/events'
 import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -121,6 +122,7 @@ import api from '@/plugins/axios'
 import FormDialog from '@/components/common/FormDialog.vue'
 import DateField from '@/components/common/DateField.vue'
 
+const display = useDisplay()
 const store = useEventsStore()
 const { success, error } = useNotification()
 const { confirm } = useConfirmDialog()
@@ -299,12 +301,10 @@ async function handleDelete() {
 const calendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
   locale: ruLocale,
-  initialView: 'dayGridMonth',
-  headerToolbar: {
-    left: 'prev,next today',
-    center: 'title',
-    right: 'dayGridMonth,timeGridWeek,listMonth',
-  },
+  initialView: display.mobile.value ? 'listWeek' : 'dayGridMonth',
+  headerToolbar: display.mobile.value
+    ? { left: 'prev,next', center: 'title', right: 'listWeek,dayGridMonth' }
+    : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
   buttonText: { today: 'Сегодня', month: 'Месяц', week: 'Неделя', list: 'Список' },
   height: 'auto',
   selectable: true,

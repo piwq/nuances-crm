@@ -2,6 +2,7 @@
   <v-dialog
     :model-value="modelValue"
     :max-width="maxWidth"
+    :fullscreen="display.xs.value"
     persistent
     @update:model-value="v => emit('update:modelValue', v)"
     @click:outside="attempt"
@@ -23,12 +24,15 @@
 // Как только внутри что-то ввели — включается защита: Vuetify подёргивает
 // окно, а тройная попытка подряд закрывает его (подсказка после первой).
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useDisplay } from 'vuetify'
 
 const props = defineProps({
   modelValue: Boolean,
   maxWidth: { type: [Number, String], default: 520 },
 })
 const emit = defineEmits(['update:modelValue'])
+
+const display = useDisplay()
 
 const attempts = ref(0)
 const dirty = ref(false)

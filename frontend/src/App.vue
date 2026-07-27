@@ -71,6 +71,18 @@ body, .v-application {
 .gap-2 { gap: 8px; }
 .gap-3 { gap: 12px; }
 
+/* Таблицы на узких экранах: скроллим саму таблицу, страница по горизонтали
+   не разъезжается */
+.v-table__wrapper {
+  overflow-x: auto;
+}
+@media (max-width: 600px) {
+  .v-data-table .v-data-table__td,
+  .v-data-table .v-data-table__th {
+    white-space: nowrap;
+  }
+}
+
 /* Современные алгоритмы переноса текста (прогрессивное улучшение,
    старые браузеры просто игнорируют): balance выравнивает длину строк
    в заголовках, pretty избавляет абзацы от висячих последних слов */

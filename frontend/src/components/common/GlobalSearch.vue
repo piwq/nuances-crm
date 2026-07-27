@@ -1,7 +1,9 @@
 <template>
   <div>
-    <!-- Trigger button in sidebar -->
+    <!-- Trigger: icon in the mobile app bar, list item in the sidebar -->
+    <v-btn v-if="compact" icon="mdi-magnify" variant="text" @click="open" />
     <v-list-item
+      v-else
       prepend-icon="mdi-magnify"
       title="Поиск"
       rounded="xs"
@@ -14,7 +16,7 @@
     </v-list-item>
 
     <!-- Search Dialog -->
-    <v-dialog v-model="show" max-width="600" :scrim="true">
+    <v-dialog v-model="show" max-width="600" :scrim="true" :fullscreen="$vuetify.display.xs">
       <v-card>
         <v-text-field
           ref="inputRef"
@@ -130,6 +132,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/plugins/axios'
+
+defineProps({ compact: Boolean })
 
 const router = useRouter()
 

@@ -3,30 +3,31 @@
     <!-- Sidebar Navigation -->
     <v-navigation-drawer
       v-model="drawer"
-      :rail="rail"
-      permanent
+      :rail="!mobile && rail"
+      :permanent="!mobile"
+      :temporary="mobile"
       elevation="0"
     >
       <div class="sidebar-brand">
         <v-btn
-          icon="mdi-menu-open"
+          :icon="mobile ? 'mdi-close' : 'mdi-menu-open'"
           variant="text"
           color="primary"
           size="small"
           class="rail-toggle"
-          :class="{ 'rail-toggle--rotated': rail }"
-          @click="rail = !rail"
+          :class="{ 'rail-toggle--rotated': !mobile && rail }"
+          @click="mobile ? (drawer = false) : (rail = !rail)"
         />
         <v-fade-transition>
           <img
-            v-if="!rail"
+            v-if="mobile || !rail"
             :src="theme.global.name.value === 'dark' ? logoDark : logoLight"
             alt="Нюансы"
             style="height: 34px; display: block;"
           />
         </v-fade-transition>
         <v-fade-transition>
-          <div v-if="!rail" class="ml-auto">
+          <div v-if="!mobile && !rail" class="ml-auto">
             <notification-bell />
           </div>
         </v-fade-transition>
@@ -34,8 +35,8 @@
 
       <v-list density="compact" nav class="px-2">
         <v-expand-transition>
-          <div v-if="!rail" class="rail-fixed">
-            <global-search />
+          <div v-if="mobile || !rail" class="rail-fixed">
+            <global-search v-if="!mobile" />
             <time-tracker />
           </div>
         </v-expand-transition>
@@ -85,7 +86,7 @@
           />
 
           <v-expand-transition>
-          <router-link class="sidebar-user-card rail-fixed" to="/profile" v-if="!rail" title="Мой профиль">
+          <router-link class="sidebar-user-card rail-fixed" to="/profile" v-if="mobile || !rail" title="Мой профиль">
             <v-avatar color="primary" size="32">
               <v-img v-if="auth.user?.avatar" :src="auth.user.avatar" />
               <span v-else class="text-white text-caption font-weight-bold">{{ userInitials }}</span>
@@ -100,9 +101,23 @@
       </template>
     </v-navigation-drawer>
 
+    <!-- Mobile top bar -->
+    <v-app-bar v-if="mobile" flat density="comfortable" class="border-b">
+      <v-app-bar-nav-icon @click="drawer = !drawer" />
+      <v-app-bar-title>
+        <img
+          :src="theme.global.name.value === 'dark' ? logoDark : logoLight"
+          alt="Нюансы"
+          style="height: 26px; display: block;"
+        />
+      </v-app-bar-title>
+      <global-search compact />
+      <notification-bell />
+    </v-app-bar>
+
     <!-- Main Content -->
     <v-main class="bg-background">
-      <v-container fluid class="pa-6 pa-md-8">
+      <v-container fluid class="pa-4 pa-sm-6 pa-md-8">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
             <component :is="Component" />
@@ -141,7 +156,7 @@
 <script setup>
 import { roleLabel } from '@/utils/constants'
 import { ref, computed } from 'vue'
-import { useTheme } from 'vuetify'
+import { useTheme, useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -153,6 +168,7 @@ import NotificationBell from '@/components/common/NotificationBell.vue'
 
 const auth = useAuthStore()
 const theme = useTheme()
+const { mobile } = useDisplay()
 const { snackbar } = useNotification()
 const { dialog: confirmDialog, onConfirm, onCancel } = useConfirmDialog()
 
@@ -167,7 +183,8 @@ function toggleTheme() {
   localStorage.setItem('theme', theme.global.name.value)
 }
 
-const drawer = ref(true)
+// на телефоне панель закрыта и выезжает поверх контента
+const drawer = ref(!useDisplay().mobile.value)
 const rail = ref(false)
 
 const userInitials = computed(() => {
