@@ -1,5 +1,6 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.db import IntegrityError
 
 from .models import Notification
 
@@ -15,7 +16,11 @@ def create_notification(user, title, body='', link='', key='', telegram=True, tg
     if key and Notification.objects.filter(user=user, key=key).exists():
         return None
 
-    notif = Notification.objects.create(user=user, title=title, body=body, link=link, key=key)
+    try:
+        notif = Notification.objects.create(
+            user=user, title=title, body=body, link=link, key=key)
+    except IntegrityError:
+        return None  # параллельный прогон уже создал это уведомление
     _push_ws(notif)
     if telegram:
         _push_telegram(notif, tg_buttons)

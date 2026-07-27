@@ -36,6 +36,10 @@ class TimeEntry(models.Model):
         ordering = ['-date']
         verbose_name = 'Запись времени'
         verbose_name_plural = 'Записи времени'
+        indexes = [
+            models.Index(fields=['lawyer', '-date']),
+            models.Index(fields=['-date']),
+        ]
 
     def __str__(self):
         return f'{self.date} — {self.case} — {self.hours}ч'
@@ -97,6 +101,10 @@ class Invoice(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Счёт'
         verbose_name_plural = 'Счета'
+        indexes = [
+            models.Index(fields=['status', 'due_date']),
+            models.Index(fields=['-created_at']),
+        ]
 
     def __str__(self):
         return f'{self.invoice_number} — {self.client}'

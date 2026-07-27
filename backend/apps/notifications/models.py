@@ -16,6 +16,19 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['-created_at']),
+        ]
+        constraints = [
+            # дедупликация напоминаний была только через filter().exists() —
+            # два параллельных прогона планировщика могли создать дубль
+            models.UniqueConstraint(
+                fields=['user', 'key'],
+                condition=~models.Q(key=''),
+                name='uniq_notification_key_per_user',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.user} — {self.title}'

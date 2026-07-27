@@ -77,6 +77,10 @@ class Task(models.Model):
         ordering = ['due_date', '-priority']
         verbose_name = 'Задача'
         verbose_name_plural = 'Задачи'
+        indexes = [
+            models.Index(fields=['status', 'due_date']),
+            models.Index(fields=['assigned_to', 'status']),
+        ]
 
     def __str__(self):
         return self.title
@@ -159,6 +163,9 @@ class Event(models.Model):
         ordering = ['start_datetime']
         verbose_name = 'Событие'
         verbose_name_plural = 'События'
+        indexes = [
+            models.Index(fields=['start_datetime']),
+        ]
 
     def __str__(self):
         return f'{self.get_event_type_display()}: {self.title}'

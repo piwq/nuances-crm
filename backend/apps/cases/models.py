@@ -104,6 +104,12 @@ class Case(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Дело'
         verbose_name_plural = 'Дела'
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['category']),
+            models.Index(fields=['key_deadline']),
+            models.Index(fields=['-created_at']),
+        ]
 
     def __str__(self):
         return f'{self.case_number}: {self.title}'

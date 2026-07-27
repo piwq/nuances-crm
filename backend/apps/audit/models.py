@@ -11,6 +11,10 @@ class ActivityLog(models.Model):
     
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['resource_type', 'resource_uuid']),
+        ]
         verbose_name = 'Лог активности'
         verbose_name_plural = 'Логи активности'
 
