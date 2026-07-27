@@ -2,7 +2,7 @@ from django.db.models.signals import post_save, pre_save, m2m_changed
 from django.dispatch import receiver
 
 from apps.tasks.models import Task
-from apps.cases.models import Case
+from apps.cases.models import Case, CaseNote
 from apps.documents.models import Document
 from apps.chat.models import ChatMessage
 from .utils import create_notification
@@ -85,6 +85,26 @@ def notify_case_assignment(sender, instance, action, pk_set, **kwargs):
             body=f'Дело {instance.case_number}',
             link=f'/cases/{instance.uuid}',
             key=f'case_{instance.id}_assigned_{user.id}',
+        )
+
+
+@receiver(post_save, sender=CaseNote)
+def notify_case_note(sender, instance, created, **kwargs):
+    if not created:
+        return
+    case = instance.case
+    recipients = set(case.assigned_lawyers.all())
+    if case.lead_lawyer:
+        recipients.add(case.lead_lawyer)
+    recipients.discard(instance.author)
+    text = instance.text if len(instance.text) <= 120 else instance.text[:119] + '…'
+    for user in recipients:
+        create_notification(
+            user=user,
+            title=f'Заметка по делу: {case.title}',
+            body=text,
+            link=f'/cases/{case.uuid}',
+            key=f'note_{instance.id}_user_{user.id}',
         )
 
 

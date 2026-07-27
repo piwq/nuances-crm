@@ -62,3 +62,27 @@ class TestNotificationTriggers:
         assert note.link == '/chat'
         assert not Notification.objects.filter(
             user=lawyer_a, title__startswith='Сообщение от').exists()
+
+
+@pytest.mark.django_db
+class TestCaseNoteNotification:
+    def test_team_notified_except_author(self, case_a, lawyer_a, lawyer_b):
+        from apps.cases.models import CaseNote
+        case_a.assigned_lawyers.add(lawyer_b)
+        Notification.objects.all().delete()
+
+        CaseNote.objects.create(case=case_a, author=lawyer_a,
+                                text='Клиент прислал недостающие документы.')
+
+        note = Notification.objects.get(user=lawyer_b, title__startswith='Заметка по делу')
+        assert 'недостающие документы' in note.body
+        assert not Notification.objects.filter(
+            user=lawyer_a, title__startswith='Заметка по делу').exists()
+
+    def test_long_note_truncated(self, case_a, lawyer_a, lawyer_b):
+        from apps.cases.models import CaseNote
+        case_a.assigned_lawyers.add(lawyer_b)
+        Notification.objects.all().delete()
+        CaseNote.objects.create(case=case_a, author=lawyer_a, text='я' * 300)
+        note = Notification.objects.get(user=lawyer_b, title__startswith='Заметка по делу')
+        assert note.body.endswith('…') and len(note.body) == 120
