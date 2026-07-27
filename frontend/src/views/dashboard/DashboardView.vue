@@ -12,6 +12,9 @@
               <div class="text-h4 font-weight-bold mt-1" :class="`text-${stat.color}`">
                 {{ stat.loading ? '...' : stat.value }}
               </div>
+              <div v-if="stat.hint && !stat.loading" class="text-caption text-medium-emphasis mt-1">
+                {{ stat.hint }}
+              </div>
             </div>
             <v-icon :icon="stat.icon" :color="stat.color" size="40" />
           </v-card-text>
@@ -198,7 +201,7 @@ import { useCasesStore } from '@/stores/cases'
 import { useTasksStore } from '@/stores/tasks'
 import { useEventsStore } from '@/stores/events'
 import { useAuthStore } from '@/stores/auth'
-import { formatDate, formatDateTime } from '@/utils/formatters'
+import { formatDate, formatDateTime, formatCurrency } from '@/utils/formatters'
 import { EVENT_TYPES, CASE_CATEGORIES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { format, startOfToday, addDays, differenceInCalendarDays, parseISO, formatDistanceToNow } from 'date-fns'
@@ -214,6 +217,7 @@ const eventsStore = useEventsStore()
 
 const caseStats = ref(null)
 const monthlyBilling = ref([])
+const receivables = ref({ outstanding: 0, overdue: 0, invoices_count: 0, overdue_count: 0 })
 const statsLoading = ref(true)
 const upcomingDeadlines = ref([])
 const deadlinesLoading = ref(false)
@@ -289,11 +293,14 @@ const stats = computed(() => [
     loading: statsLoading.value,
   },
   {
-    title: 'Новых дел',
-    value: caseStats.value?.by_status?.new || 0,
-    icon: 'mdi-star',
-    color: 'warning',
+    title: 'К получению',
+    value: formatCurrency(receivables.value.outstanding),
+    icon: 'mdi-cash-clock',
+    color: receivables.value.overdue > 0 ? 'error' : 'success',
     loading: statsLoading.value,
+    hint: receivables.value.overdue > 0
+      ? `просрочено ${formatCurrency(receivables.value.overdue)}`
+      : `${receivables.value.invoices_count} неоплаченных счетов`,
   },
 ])
 
@@ -362,6 +369,7 @@ onMounted(async () => {
       tasksStore.fetchTasks({ page_size: 50, status: 'todo,in_progress' }),
       eventsStore.fetchEvents(today, future),
       api.get('/api/v1/billing/monthly-stats/').then(r => monthlyBilling.value = r.data),
+      api.get('/api/v1/billing/receivables/').then(r => receivables.value = r.data),
       loadDeadlines(),
       loadActivity(),
     ])

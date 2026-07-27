@@ -1,5 +1,6 @@
 import csv
 from datetime import date
+from decimal import Decimal
 from django.http import HttpResponse
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
@@ -7,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import django_filters
 from django.db.models import Sum, Count, Q, F, DecimalField
-from django.db.models.functions import TruncMonth
+from django.db.models.functions import TruncMonth, Coalesce
 
 from common.permissions import IsAdmin, IsLawyerOrAdmin
 from common.scoping import scope_by_case
@@ -71,6 +72,36 @@ def time_entry_summary_view(request):
         unbilled_hours=Sum('hours', filter=Q(invoice__isnull=True)),
     )
     return Response(list(summary))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def receivables_summary_view(request):
+    """Дебиторка: сколько ждём от клиентов и сколько из этого просрочено."""
+    qs = scope_by_case(
+        Invoice.objects.filter(status__in=[Invoice.STATUS_SENT, Invoice.STATUS_OVERDUE]),
+        request.user,
+    ).annotate(paid_total=Coalesce(Sum('payments__amount'), Decimal('0')))
+
+    outstanding = overdue = Decimal('0')
+    count = overdue_count = 0
+    today = date.today()
+    for invoice in qs:
+        rest = (invoice.total or Decimal('0')) - invoice.paid_total
+        if rest <= 0:
+            continue
+        outstanding += rest
+        count += 1
+        if invoice.due_date and invoice.due_date < today:
+            overdue += rest
+            overdue_count += 1
+
+    return Response({
+        'outstanding': float(outstanding),
+        'overdue': float(overdue),
+        'invoices_count': count,
+        'overdue_count': overdue_count,
+    })
 
 
 class InvoiceFilter(django_filters.FilterSet):
