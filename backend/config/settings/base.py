@@ -88,7 +88,15 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [(REDIS_HOST, REDIS_PORT)],
+            'hosts': [{
+                'address': f'redis://{REDIS_HOST}:{REDIS_PORT}',
+                # WS-соединение простаивает между сообщениями; без периодического
+                # ping Redis закрывает его, и подключение падает с
+                # «Timeout reading from redis» — клиент вынужден переподключаться
+                'health_check_interval': 30,
+                'socket_keepalive': True,
+                'retry_on_timeout': True,
+            }],
         },
     },
 }
