@@ -195,6 +195,10 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/min',  # защита /auth/login/ от перебора
     },
+    # Клиента опознаём по адресу, который дописал наш nginx, а не по всей
+    # цепочке X-Forwarded-For: иначе перебор обходится подстановкой левого
+    # адреса в заголовок — каждая попытка выглядит как новый клиент
+    'NUM_PROXIES': 1,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
