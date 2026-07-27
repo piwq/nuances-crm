@@ -332,6 +332,11 @@ def today_digest_text(user):
         Task.objects.filter(assigned_to=user, status__in=['todo', 'in_progress'],
                             due_date=today).select_related('case')[:LIST_LIMIT]
     )
+    overdue = list(
+        Task.objects.filter(assigned_to=user, status__in=['todo', 'in_progress'],
+                            due_date__lt=today).select_related('case')
+        .order_by('due_date')[:LIST_LIMIT]
+    )
     hot = list(
         scope_cases(Case.objects.filter(
             key_deadline__isnull=False,
@@ -340,7 +345,7 @@ def today_digest_text(user):
         ), user).order_by('key_deadline')[:LIST_LIMIT]
     )
 
-    if not events and not tasks and not hot:
+    if not events and not tasks and not hot and not overdue:
         return f'☀️ Доброе утро\\! На {_fmt_date(today)} ничего не запланировано 🎉'
 
     parts = [f'☀️ *Доброе утро\\! Сводка на {_fmt_date(today)}:*']
@@ -360,6 +365,9 @@ def today_digest_text(user):
         parts.append('*Горящие сроки:*\n' + block([
             f'❗️ {_fmt_date(c.key_deadline)} — {esc(c.title)} \\({_days_left(c.key_deadline)}\\)'
             for c in hot]))
+    if overdue:
+        parts.append('*🔴 Просрочено:*\n' + block([
+            f'▫️ {esc(t.title)} — срок был {_fmt_date(t.due_date)}' for t in overdue]))
     return '\n\n'.join(parts)
 
 

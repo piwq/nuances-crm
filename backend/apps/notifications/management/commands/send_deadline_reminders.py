@@ -16,6 +16,13 @@ from apps.notifications.utils import create_notification
 TASK_THRESHOLDS = [1, 3]   # days before due_date
 EVENT_THRESHOLDS = [1]
 CASE_DEADLINE_THRESHOLDS = [1, 3, 7]   # процессуальные сроки — предупреждаем раньше
+OVERDUE_TASK_DAYS = [1, 3, 7]          # напоминания после просрочки, дальше — раз в неделю
+
+
+def _should_remind_overdue(days):
+    """Первые дни просрочки напоминаем чаще, потом еженедельно — чтобы
+    висящая месяцами задача не превратилась в ежедневный спам."""
+    return days in OVERDUE_TASK_DAYS or (days > 7 and days % 7 == 0)
 
 
 def _days_word(days):
@@ -115,5 +122,47 @@ class Command(BaseCommand):
                     )
                     if n:
                         created += 1
+
+        # ── Просроченные задачи ────────────────────────────────────────────
+        for task in active_tasks.filter(due_date__lt=today):
+            days = (today - task.due_date).days
+            if not _should_remind_overdue(days):
+                continue
+            body = f'Просрочена на {days} {_days_word(days)}'
+            if task.case_id:
+                body += f' · дело: {task.case.title}'
+            link = f'/cases/{task.case.uuid}' if task.case_id else '/tasks'
+            n = create_notification(
+                user=task.assigned_to,
+                title=f'🔴 Просрочена задача: {task.title}',
+                body=body,
+                link=link,
+                key=f'task_{task.id}_overdue_{days}d',
+                tg_buttons=[[
+                    {'text': '✅ Выполнено', 'callback_data': f'task_done:{task.id}'},
+                    {'text': '⏰ +1 день', 'callback_data': f'task_snooze:{task.id}'},
+                ]],
+            )
+            if n:
+                created += 1
+
+        # ── Просроченные процессуальные сроки ──────────────────────────────
+        # напоминаем каждый день: пропущенный процессуальный срок необратим
+        for case in open_cases.filter(key_deadline__lt=today):
+            days = (today - case.key_deadline).days
+            recipients = set(case.assigned_lawyers.all())
+            if case.lead_lawyer:
+                recipients.add(case.lead_lawyer)
+            note = f' · {case.key_deadline_note}' if case.key_deadline_note else ''
+            for user in recipients:
+                n = create_notification(
+                    user=user,
+                    title=f'🔴 ПРОСРОЧЕН срок по делу: {case.title}',
+                    body=f'Срок был {case.key_deadline} — {days} {_days_word(days)} назад{note}',
+                    link=f'/cases/{case.uuid}',
+                    key=f'case_{case.id}_overdue_{today}_user_{user.id}',
+                )
+                if n:
+                    created += 1
 
         self.stdout.write(self.style.SUCCESS(f'Created {created} reminder notifications'))
