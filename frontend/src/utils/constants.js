@@ -60,6 +60,15 @@ export const DOCUMENT_TYPES = [
   { value: 'other', label: 'Прочее' },
 ]
 
+export const EXPENSE_CATEGORIES = [
+  { value: 'state_fee', label: 'Госпошлина' },
+  { value: 'expert', label: 'Экспертиза' },
+  { value: 'notary', label: 'Нотариус' },
+  { value: 'travel', label: 'Транспорт и проживание' },
+  { value: 'post', label: 'Почта и курьер' },
+  { value: 'other', label: 'Прочее' },
+]
+
 export const INVOICE_STATUSES = [
   { value: 'draft', label: 'Черновик', color: 'grey' },
   { value: 'sent', label: 'Отправлен', color: 'blue' },

@@ -11,10 +11,12 @@ from django.db.models.functions import TruncMonth
 
 from common.permissions import IsAdmin, IsLawyerOrAdmin
 from common.scoping import scope_by_case
-from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice
+from .models import (
+    TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice, CaseExpense,
+)
 from .serializers import (
     TimeEntrySerializer, InvoiceSerializer, InvoiceListSerializer, InvoiceItemSerializer,
-    InvoicePaymentSerializer, RecurringInvoiceSerializer,
+    InvoicePaymentSerializer, RecurringInvoiceSerializer, CaseExpenseSerializer,
 )
 
 
@@ -196,6 +198,65 @@ def mark_paid_view(request, pk):
         serializer.save()
     invoice.sync_payment_status()
     invoice.refresh_from_db()
+    return Response(InvoiceSerializer(invoice, context={'request': request}).data)
+
+
+class CaseExpenseFilter(django_filters.FilterSet):
+    date_from = django_filters.DateFilter(field_name='date', lookup_expr='gte')
+    date_to = django_filters.DateFilter(field_name='date', lookup_expr='lte')
+    unbilled = django_filters.BooleanFilter(field_name='invoice', lookup_expr='isnull')
+
+    class Meta:
+        model = CaseExpense
+        fields = ['case', 'category', 'is_billable']
+
+
+class CaseExpenseListCreateView(generics.ListCreateAPIView):
+    serializer_class = CaseExpenseSerializer
+    filterset_class = CaseExpenseFilter
+    search_fields = ['description', 'case__title']
+    ordering_fields = ['date', 'amount']
+    ordering = ['-date']
+
+    def get_queryset(self):
+        return scope_by_case(CaseExpense.objects.select_related('case'), self.request.user)
+
+
+class CaseExpenseDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CaseExpenseSerializer
+
+    def get_queryset(self):
+        return scope_by_case(CaseExpense.objects.select_related('case'), self.request.user)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsLawyerOrAdmin])
+def add_expenses_to_invoice_view(request, pk):
+    """Перенести неперевыставленные расходы дела в счёт отдельными позициями."""
+    invoice = _get_invoice_or_none(request, pk)
+    if invoice is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    if invoice.status != Invoice.STATUS_DRAFT:
+        return Response({'detail': 'Можно добавлять только в черновик.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    expenses = CaseExpense.objects.filter(
+        case=invoice.case, invoice__isnull=True, is_billable=True)
+    if not expenses.exists():
+        return Response({'detail': 'Нет неперевыставленных расходов.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    for expense in expenses:
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            description=f'{expense.get_category_display()}: {expense.description}',
+            quantity=1,
+            unit_price=expense.amount,
+        )
+        expense.invoice = invoice
+        expense.save(update_fields=['invoice'])
+
+    invoice.recalculate_totals()
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
 
 

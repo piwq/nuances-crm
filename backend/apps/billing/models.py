@@ -172,6 +172,59 @@ class Invoice(models.Model):
         self.save(update_fields=fields)
 
 
+class CaseExpense(models.Model):
+    """Расход по делу: пошлина, экспертиза, нотариус и т.п.
+
+    Расходы перевыставляются клиенту наравне с часами — попадают в счёт
+    отдельными позициями.
+    """
+    CAT_STATE_FEE = 'state_fee'
+    CAT_EXPERT = 'expert'
+    CAT_NOTARY = 'notary'
+    CAT_TRAVEL = 'travel'
+    CAT_POST = 'post'
+    CAT_OTHER = 'other'
+    CATEGORY_CHOICES = [
+        (CAT_STATE_FEE, 'Госпошлина'),
+        (CAT_EXPERT, 'Экспертиза'),
+        (CAT_NOTARY, 'Нотариус'),
+        (CAT_TRAVEL, 'Транспорт и проживание'),
+        (CAT_POST, 'Почта и курьер'),
+        (CAT_OTHER, 'Прочее'),
+    ]
+
+    case = models.ForeignKey('cases.Case', on_delete=models.CASCADE,
+                             related_name='expenses', verbose_name='Дело')
+    date = models.DateField(default=date.today, verbose_name='Дата')
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES,
+                                default=CAT_OTHER, verbose_name='Категория')
+    description = models.CharField(max_length=255, verbose_name='Описание')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Сумма')
+    is_billable = models.BooleanField(
+        default=True, verbose_name='Перевыставить клиенту',
+        help_text='Снимите, если расход остаётся за фирмой')
+    receipt = models.FileField(upload_to='expenses/%Y/%m/', null=True, blank=True,
+                               verbose_name='Чек / подтверждение')
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='expenses', verbose_name='Счёт')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='created_expenses')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-id']
+        verbose_name = 'Расход по делу'
+        verbose_name_plural = 'Расходы по делу'
+        indexes = [
+            models.Index(fields=['case', '-date']),
+        ]
+
+    def __str__(self):
+        return f'{self.date} — {self.get_category_display()} — {self.amount} ₽'
+
+
 def _shift_months(year, month, step):
     total = year * 12 + (month - 1) + step
     return total // 12, total % 12 + 1

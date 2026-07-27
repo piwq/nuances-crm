@@ -213,6 +213,52 @@
             </v-card>
           </v-col>
 
+          <!-- Expenses -->
+          <v-col cols="12">
+            <v-card class="mb-4">
+              <v-card-title class="d-flex justify-space-between align-center">
+                <span>
+                  Расходы по делу
+                  <span v-if="expensesTotal" class="text-body-2 text-medium-emphasis ml-2">
+                    всего {{ formatCurrency(expensesTotal) }},
+                    к перевыставлению {{ formatCurrency(expensesBillable) }}
+                  </span>
+                </span>
+                <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-plus" @click="openExpenseDialog">
+                  Добавить расход
+                </v-btn>
+              </v-card-title>
+              <v-divider />
+              <v-list v-if="expenses.length" density="compact">
+                <v-list-item v-for="e in expenses" :key="e.id">
+                  <v-list-item-title class="text-body-2">
+                    {{ e.description }}
+                    <v-chip size="x-small" variant="tonal" class="ml-1">{{ e.category_display }}</v-chip>
+                    <v-chip v-if="!e.is_billable" size="x-small" color="grey" variant="tonal" class="ml-1">
+                      за счёт фирмы
+                    </v-chip>
+                    <v-chip v-else-if="e.is_invoiced" size="x-small" color="success" variant="tonal" class="ml-1">
+                      в счёте
+                    </v-chip>
+                  </v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">
+                    {{ formatDate(e.date) }}
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <div class="d-flex align-center gap-2">
+                      <span class="font-weight-medium">{{ formatCurrency(e.amount) }}</span>
+                      <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error"
+                             @click="deleteExpense(e)" />
+                    </div>
+                  </template>
+                </v-list-item>
+              </v-list>
+              <v-card-text v-else class="text-medium-emphasis text-body-2">
+                Расходов нет. Госпошлины, экспертизы и прочие траты по делу попадут в счёт клиенту.
+              </v-card-text>
+            </v-card>
+          </v-col>
+
           <!-- Retainer -->
           <v-col cols="12">
             <v-card>
@@ -452,6 +498,49 @@
       </v-card>
     </v-dialog>
 
+    <!-- Expense Dialog -->
+    <form-dialog v-model="expenseDialog" max-width="480">
+      <v-card>
+        <v-card-title>Расход по делу</v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4">
+          <v-select
+            v-model="expenseForm.category"
+            :items="EXPENSE_CATEGORIES"
+            item-title="label"
+            item-value="value"
+            label="Категория"
+            class="mb-2"
+          />
+          <v-text-field v-model="expenseForm.description" label="Описание *" class="mb-2" />
+          <v-row dense>
+            <v-col cols="6">
+              <v-text-field v-model.number="expenseForm.amount" label="Сумма *" type="number" suffix="₽" />
+            </v-col>
+            <v-col cols="6">
+              <date-field v-model="expenseForm.date" label="Дата" />
+            </v-col>
+          </v-row>
+          <v-checkbox
+            v-model="expenseForm.is_billable"
+            label="Перевыставить клиенту"
+            hide-details
+            density="compact"
+          />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="expenseDialog = false">Отмена</v-btn>
+          <v-btn color="primary" variant="elevated" :loading="savingExpense"
+                 :disabled="!expenseForm.description?.trim() || !expenseForm.amount"
+                 @click="saveExpense">
+            Добавить
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </form-dialog>
+
     <!-- Retainer Dialog -->
     <form-dialog v-model="retainerDialog" max-width="520">
       <v-card>
@@ -537,7 +626,7 @@ import { useDocumentsStore } from '@/stores/documents'
 import { useTasksStore } from '@/stores/tasks'
 import { useBillingStore } from '@/stores/billing'
 import { formatDate, formatDateTime, formatCurrency } from '@/utils/formatters'
-import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE_STATUSES, DOCUMENT_TYPES } from '@/utils/constants'
+import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE_STATUSES, DOCUMENT_TYPES, EXPENSE_CATEGORIES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useNotification } from '@/composables/useNotification'
@@ -589,6 +678,74 @@ const taskDialog = ref(false)
 const taskSaving = ref(false)
 const taskForm = ref({ title: '', description: '', assigned_to: null, due_date: null, priority: 'medium' })
 const lawyers = ref([])
+
+const expenses = ref([])
+const expenseDialog = ref(false)
+const savingExpense = ref(false)
+const expenseForm = ref(emptyExpense())
+
+function emptyExpense() {
+  return {
+    category: 'state_fee',
+    description: '',
+    amount: null,
+    date: new Date().toISOString().slice(0, 10),
+    is_billable: true,
+  }
+}
+
+const expensesTotal = computed(() =>
+  expenses.value.reduce((s, e) => s + Number(e.amount || 0), 0))
+const expensesBillable = computed(() =>
+  expenses.value.filter(e => e.is_billable && !e.is_invoiced)
+    .reduce((s, e) => s + Number(e.amount || 0), 0))
+
+async function loadExpenses() {
+  if (!caseItem.value) return
+  try {
+    const { data } = await api.get('/api/v1/billing/expenses/', {
+      params: { case: caseItem.value.id, page_size: 100 },
+    })
+    expenses.value = data.results || data
+  } catch {
+    // блок необязательный
+  }
+}
+
+function openExpenseDialog() {
+  expenseForm.value = emptyExpense()
+  expenseDialog.value = true
+}
+
+async function saveExpense() {
+  savingExpense.value = true
+  try {
+    await api.post('/api/v1/billing/expenses/', {
+      case: caseItem.value.id,
+      ...expenseForm.value,
+    })
+    await loadExpenses()
+    success('Расход добавлен')
+    expenseDialog.value = false
+  } catch (e) {
+    error(e.response?.data?.amount?.[0] || 'Ошибка сохранения расхода')
+  } finally {
+    savingExpense.value = false
+  }
+}
+
+async function deleteExpense(expense) {
+  const ok = await confirmDlg('Удалить расход?',
+    `${expense.description} — ${formatCurrency(expense.amount)}`)
+  if (!ok) return
+  try {
+    await api.delete(`/api/v1/billing/expenses/${expense.id}/`)
+    await loadExpenses()
+    success('Расход удалён')
+  } catch {
+    error('Ошибка удаления')
+  }
+}
 
 const retainers = ref([])
 const retainerDialog = ref(false)
@@ -718,6 +875,7 @@ async function fetchData() {
       billingStore.fetchTimeEntries({ case: caseId, page_size: 100 }),
       billingStore.fetchInvoices({ case: caseId, page_size: 50 }),
       loadRetainers(),
+      loadExpenses(),
     ])
   } catch (e) {
     error('Ошибка загрузки данных')

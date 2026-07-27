@@ -1,7 +1,9 @@
 from rest_framework import serializers
 from apps.accounts.models import CustomUser
 from common.scoping import user_can_access_case
-from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice
+from .models import (
+    TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice, CaseExpense,
+)
 
 
 def _check_case_access(serializer, case):
@@ -69,6 +71,37 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
     def validate_invoice(self, invoice):
         _check_case_access(self, invoice.case)
         return invoice
+
+
+class CaseExpenseSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    case_title = serializers.SerializerMethodField()
+    is_invoiced = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CaseExpense
+        fields = ['id', 'case', 'case_title', 'date', 'category', 'category_display',
+                  'description', 'amount', 'is_billable', 'receipt', 'invoice',
+                  'is_invoiced', 'created_at']
+        read_only_fields = ['invoice', 'created_at']
+
+    def get_case_title(self, obj):
+        return str(obj.case)
+
+    def get_is_invoiced(self, obj):
+        return obj.invoice_id is not None
+
+    def validate_case(self, case):
+        return _check_case_access(self, case)
+
+    def validate_amount(self, amount):
+        if amount <= 0:
+            raise serializers.ValidationError('Сумма расхода должна быть больше нуля.')
+        return amount
+
+    def create(self, validated_data):
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
 
 
 class InvoicePaymentSerializer(serializers.ModelSerializer):

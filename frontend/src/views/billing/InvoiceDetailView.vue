@@ -15,6 +15,16 @@
             Из записей времени
           </v-btn>
           <v-btn
+            v-if="invoice.status === 'draft'"
+            variant="tonal"
+            color="info"
+            prepend-icon="mdi-cash-multiple"
+            :loading="addingExpenses"
+            @click="handleAddExpenses"
+          >
+            Из расходов
+          </v-btn>
+          <v-btn
             v-if="['draft', 'sent', 'overdue'].includes(invoice.status)"
             variant="tonal"
             color="primary"
@@ -383,6 +393,7 @@ const generating = ref(false)
 const marking = ref(false)
 const downloadingPdf = ref(false)
 const downloadingAct = ref(false)
+const addingExpenses = ref(false)
 const paidDialog = ref(false)
 const paidDate = ref(new Date().toISOString().slice(0, 10))
 const emailDialog = ref(false)
@@ -477,6 +488,19 @@ async function handleGenerate() {
     error(msg)
   } finally {
     generating.value = false
+  }
+}
+
+async function handleAddExpenses() {
+  addingExpenses.value = true
+  try {
+    const { data } = await api.post(`/api/v1/billing/invoices/${invoice.value.id}/add-expenses/`)
+    invoice.value = data
+    success('Расходы добавлены в счёт')
+  } catch (e) {
+    error(e.response?.data?.detail || 'Нет неперевыставленных расходов')
+  } finally {
+    addingExpenses.value = false
   }
 }
 
