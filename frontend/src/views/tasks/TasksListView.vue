@@ -59,7 +59,30 @@
     </v-card>
 
     <v-card>
+      <v-slide-y-transition>
+        <div v-if="selected.length" class="d-flex align-center gap-2 pa-3 bg-primary-lighten-5 border-b">
+          <span class="text-body-2 font-weight-medium">Выбрано: {{ selected.length }}</span>
+          <v-spacer />
+          <v-btn size="small" variant="tonal" color="success" prepend-icon="mdi-check-all"
+                 :loading="bulkLoading" @click="bulkAction('complete')">
+            Выполнить
+          </v-btn>
+          <v-btn size="small" variant="tonal" prepend-icon="mdi-restore"
+                 :loading="bulkLoading" @click="bulkAction('reopen')">
+            Вернуть в работу
+          </v-btn>
+          <v-btn size="small" variant="tonal" color="error" prepend-icon="mdi-delete-outline"
+                 :loading="bulkLoading" @click="bulkAction('delete')">
+            Удалить
+          </v-btn>
+          <v-btn size="small" variant="text" @click="selected = []">Снять</v-btn>
+        </div>
+      </v-slide-y-transition>
+
       <v-data-table-server
+        v-model="selected"
+        show-select
+        item-value="id"
         :headers="headers"
         :items="store.tasks"
         :items-length="store.pagination.total"
@@ -255,6 +278,34 @@ const loadingLawyers = ref(false)
 
 const formRef = ref(null)
 const saving = ref(false)
+const selected = ref([])
+const bulkLoading = ref(false)
+
+const BULK_LABELS = {
+  complete: { title: 'Отметить выполненными?', text: 'Выполнить', color: 'success' },
+  reopen: { title: 'Вернуть в работу?', text: 'Вернуть', color: 'primary' },
+  delete: { title: 'Удалить задачи?', text: 'Удалить', color: 'error' },
+}
+
+async function bulkAction(action) {
+  const meta = BULK_LABELS[action]
+  const ok = await confirm(meta.title, `Затронуто задач: ${selected.value.length}`,
+    { confirmText: meta.text, confirmColor: meta.color })
+  if (!ok) return
+  bulkLoading.value = true
+  try {
+    const { data } = await api.post('/api/v1/tasks/bulk/', {
+      action, ids: selected.value,
+    })
+    selected.value = []
+    fetchData()
+    success(`Обработано задач: ${data.affected}`)
+  } catch {
+    error('Не удалось выполнить действие')
+  } finally {
+    bulkLoading.value = false
+  }
+}
 const dialog = ref({ show: false, task: null })
 const form = ref(emptyForm())
 

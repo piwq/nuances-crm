@@ -78,6 +78,54 @@ def complete_task_view(request, pk):
     return Response(TaskSerializer(task, context={'request': request}).data)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def tasks_bulk_view(request):
+    """Массовые действия над задачами: complete / reopen / delete.
+
+    Работает только по задачам, доступным пользователю, — чужие id
+    молча отбрасываются, а не вызывают ошибку.
+    """
+    from django.db.models import Q
+
+    action = request.data.get('action')
+    ids = request.data.get('ids') or []
+    if action not in ('complete', 'reopen', 'delete'):
+        return Response({'detail': 'Допустимые действия: complete, reopen, delete.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    if not isinstance(ids, list) or not ids:
+        return Response({'detail': 'Не переданы задачи.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    qs = Task.objects.filter(pk__in=ids)
+    if request.user.is_scoped:
+        qs = qs.filter(
+            Q(assigned_to=request.user) |
+            Q(case__assigned_lawyers=request.user) |
+            Q(case__lead_lawyer=request.user)
+        ).distinct()
+
+    # distinct() из скоупинга запрещает delete()/update() — работаем по pk
+    allowed_ids = list(qs.values_list('pk', flat=True))
+    qs = Task.objects.filter(pk__in=allowed_ids)
+
+    if action == 'delete':
+        affected = qs.count()
+        qs.delete()
+    elif action == 'complete':
+        tasks = list(qs.exclude(status=Task.STATUS_DONE))
+        affected = len(tasks)
+        for task in tasks:
+            task.status = Task.STATUS_DONE
+            task.completed_at = timezone.now()
+            task.save(update_fields=['status', 'completed_at', 'updated_at'])
+            task.spawn_next()  # повторяющиеся задачи продолжают серию
+    else:
+        affected = qs.filter(status=Task.STATUS_DONE).update(
+            status=Task.STATUS_TODO, completed_at=None, updated_at=timezone.now())
+
+    return Response({'affected': affected})
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])  # доступ даёт сам секретный токен в URL
 def calendar_feed_view(request, token):
