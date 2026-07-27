@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, Event
+from .models import Task, Event, CaseChecklist, ChecklistItem
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -63,4 +63,39 @@ class EventSerializer(serializers.ModelSerializer):
         instance = super().update(instance, validated_data)
         if attendees is not None:
             instance.attendees.set(attendees)
+        return instance
+
+
+class ChecklistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChecklistItem
+        fields = ['id', 'title', 'description', 'days_offset', 'priority', 'order']
+
+
+class CaseChecklistSerializer(serializers.ModelSerializer):
+    items = ChecklistItemSerializer(many=True)
+
+    class Meta:
+        model = CaseChecklist
+        fields = ['id', 'name', 'category', 'description', 'is_active', 'items', 'created_at']
+        read_only_fields = ['created_at']
+
+    def create(self, validated_data):
+        items = validated_data.pop('items', [])
+        validated_data['created_by'] = self.context['request'].user
+        checklist = CaseChecklist.objects.create(**validated_data)
+        for order, item in enumerate(items):
+            ChecklistItem.objects.create(checklist=checklist, order=item.pop('order', order), **item)
+        return checklist
+
+    def update(self, instance, validated_data):
+        items = validated_data.pop('items', None)
+        instance = super().update(instance, validated_data)
+        if items is not None:
+            # набор пунктов заменяется целиком — так проще и предсказуемее,
+            # чем сопоставлять по id при перетасовке порядка
+            instance.items.all().delete()
+            for order, item in enumerate(items):
+                ChecklistItem.objects.create(
+                    checklist=instance, order=item.pop('order', order), **item)
         return instance

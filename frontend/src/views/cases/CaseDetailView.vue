@@ -160,6 +160,10 @@
             Задачи
             <div class="d-flex gap-2">
               <v-btn variant="text" size="small" to="/tasks">Все задачи</v-btn>
+              <v-btn variant="tonal" size="small" prepend-icon="mdi-format-list-checks"
+                     @click="openChecklistDialog">
+                Чек-лист
+              </v-btn>
               <v-btn color="primary" prepend-icon="mdi-plus" variant="tonal" size="small" @click="openTaskDialog">
                 Новая задача
               </v-btn>
@@ -498,6 +502,43 @@
       </v-card>
     </v-dialog>
 
+    <!-- Checklist Dialog -->
+    <form-dialog v-model="checklistDialog" max-width="520">
+      <v-card>
+        <v-card-title>Применить чек-лист</v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4">
+          <v-select
+            v-model="selectedChecklist"
+            :items="checklists"
+            item-title="name"
+            item-value="id"
+            label="Чек-лист"
+            :loading="checklistsLoading"
+            :no-data-text="checklistsLoading ? 'Загрузка...' : 'Чек-листы не заведены — создайте их в разделе «Шаблоны»'"
+            class="mb-2"
+          />
+          <date-field v-model="checklistStart" label="Отсчитывать сроки от" />
+          <div v-if="selectedChecklistItems.length" class="mt-3">
+            <div class="text-caption text-medium-emphasis mb-1">Будут созданы задачи:</div>
+            <div v-for="item in selectedChecklistItems" :key="item.id" class="text-body-2">
+              • {{ item.title }}
+              <span class="text-medium-emphasis">— через {{ item.days_offset }} дн.</span>
+            </div>
+          </div>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="checklistDialog = false">Отмена</v-btn>
+          <v-btn color="primary" variant="elevated" :loading="applyingChecklist"
+                 :disabled="!selectedChecklist" @click="applyChecklist">
+            Создать задачи
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </form-dialog>
+
     <!-- Expense Dialog -->
     <form-dialog v-model="expenseDialog" max-width="480">
       <v-card>
@@ -678,6 +719,51 @@ const taskDialog = ref(false)
 const taskSaving = ref(false)
 const taskForm = ref({ title: '', description: '', assigned_to: null, due_date: null, priority: 'medium' })
 const lawyers = ref([])
+
+const checklists = ref([])
+const checklistsLoading = ref(false)
+const checklistDialog = ref(false)
+const selectedChecklist = ref(null)
+const checklistStart = ref(new Date().toISOString().slice(0, 10))
+const applyingChecklist = ref(false)
+
+const selectedChecklistItems = computed(() =>
+  checklists.value.find(c => c.id === selectedChecklist.value)?.items || [])
+
+async function openChecklistDialog() {
+  checklistDialog.value = true
+  selectedChecklist.value = null
+  checklistStart.value = new Date().toISOString().slice(0, 10)
+  if (checklists.value.length) return
+  checklistsLoading.value = true
+  try {
+    const { data } = await api.get('/api/v1/checklists/', {
+      params: { is_active: true, page_size: 100 },
+    })
+    checklists.value = data.results || data
+  } catch {
+    error('Не удалось загрузить чек-листы')
+  } finally {
+    checklistsLoading.value = false
+  }
+}
+
+async function applyChecklist() {
+  applyingChecklist.value = true
+  try {
+    const { data } = await api.post(`/api/v1/cases/${caseItem.value.uuid}/apply-checklist/`, {
+      checklist: selectedChecklist.value,
+      start_date: checklistStart.value,
+    })
+    await tasksStore.fetchTasks({ case: caseItem.value.id, page_size: 100 })
+    success(`Создано задач: ${data.created}`)
+    checklistDialog.value = false
+  } catch (e) {
+    error(e.response?.data?.detail || 'Не удалось применить чек-лист')
+  } finally {
+    applyingChecklist.value = false
+  }
+}
 
 const expenses = ref([])
 const expenseDialog = ref(false)

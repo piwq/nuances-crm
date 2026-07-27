@@ -116,6 +116,68 @@ class Task(models.Model):
         )
 
 
+class CaseChecklist(models.Model):
+    """Типовой набор задач по делу: «подготовить иск → пошлина → подача»."""
+    name = models.CharField(max_length=255, verbose_name='Название')
+    category = models.CharField(
+        max_length=30, blank=True, verbose_name='Категория дел',
+        help_text='Пусто — подходит для любых дел')
+    description = models.TextField(blank=True, verbose_name='Описание')
+    is_active = models.BooleanField(default=True, verbose_name='Активен')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='created_checklists')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Чек-лист дела'
+        verbose_name_plural = 'Чек-листы дел'
+
+    def __str__(self):
+        return self.name
+
+    def apply_to_case(self, case, start_date=None, assignee=None):
+        """Развернуть чек-лист в задачи дела. Возвращает список созданных задач."""
+        from datetime import date as date_cls, timedelta
+
+        start = start_date or date_cls.today()
+        assignee = assignee or case.lead_lawyer
+        created = []
+        for item in self.items.all():
+            created.append(Task.objects.create(
+                title=item.title,
+                description=item.description,
+                case=case,
+                assigned_to=assignee,
+                created_by=assignee,
+                priority=item.priority,
+                due_date=start + timedelta(days=item.days_offset),
+            ))
+        return created
+
+
+class ChecklistItem(models.Model):
+    checklist = models.ForeignKey(CaseChecklist, on_delete=models.CASCADE,
+                                  related_name='items')
+    title = models.CharField(max_length=255, verbose_name='Задача')
+    description = models.TextField(blank=True, verbose_name='Описание')
+    days_offset = models.IntegerField(
+        default=0, verbose_name='Срок, дней от старта',
+        help_text='0 — в день применения чек-листа')
+    priority = models.CharField(max_length=10, choices=Task.PRIORITY_CHOICES,
+                                default=Task.PRIORITY_MEDIUM, verbose_name='Приоритет')
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Порядок')
+
+    class Meta:
+        ordering = ['order', 'days_offset', 'id']
+        verbose_name = 'Пункт чек-листа'
+        verbose_name_plural = 'Пункты чек-листа'
+
+    def __str__(self):
+        return self.title
+
+
 class Event(models.Model):
     TYPE_HEARING = 'court_hearing'
     TYPE_MEETING = 'meeting'

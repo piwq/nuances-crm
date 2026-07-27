@@ -6,8 +6,8 @@ from rest_framework.response import Response
 import django_filters
 from django.utils import timezone
 
-from .models import Task, Event
-from .serializers import TaskSerializer, EventSerializer
+from .models import Task, Event, CaseChecklist
+from .serializers import TaskSerializer, EventSerializer, CaseChecklistSerializer
 
 
 class TaskFilter(django_filters.FilterSet):
@@ -76,6 +76,56 @@ def complete_task_view(request, pk):
     task.save(update_fields=['status', 'completed_at', 'updated_at'])
     task.spawn_next()  # повторяющаяся задача сразу порождает следующую
     return Response(TaskSerializer(task, context={'request': request}).data)
+
+
+class CaseChecklistListCreateView(generics.ListCreateAPIView):
+    serializer_class = CaseChecklistSerializer
+    queryset = CaseChecklist.objects.prefetch_related('items')
+    filterset_fields = ['category', 'is_active']
+
+    def get_permissions(self):
+        from common.permissions import IsAdmin
+        return [IsAdmin()] if self.request.method == 'POST' else [IsAuthenticated()]
+
+
+class CaseChecklistDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CaseChecklistSerializer
+    queryset = CaseChecklist.objects.prefetch_related('items')
+
+    def get_permissions(self):
+        from common.permissions import IsAdmin
+        return [IsAuthenticated()] if self.request.method == 'GET' else [IsAdmin()]
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apply_checklist_view(request, uuid):
+    """Развернуть чек-лист в задачи дела."""
+    from apps.cases.models import Case
+    from common.scoping import scope_cases
+    from django.shortcuts import get_object_or_404
+
+    case = get_object_or_404(scope_cases(Case.objects.all(), request.user), uuid=uuid)
+    checklist = CaseChecklist.objects.filter(
+        pk=request.data.get('checklist'), is_active=True).first()
+    if not checklist:
+        return Response({'detail': 'Чек-лист не найден.'}, status=status.HTTP_404_NOT_FOUND)
+
+    start_date = request.data.get('start_date') or None
+    if start_date:
+        from datetime import date as date_cls
+        try:
+            start_date = date_cls.fromisoformat(start_date)
+        except ValueError:
+            return Response({'detail': 'Некорректная дата старта.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    tasks = checklist.apply_to_case(
+        case, start_date=start_date, assignee=case.lead_lawyer or request.user)
+    return Response({'created': len(tasks),
+                     'tasks': TaskSerializer(tasks, many=True,
+                                             context={'request': request}).data},
+                    status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
