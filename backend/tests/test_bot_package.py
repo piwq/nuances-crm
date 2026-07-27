@@ -177,3 +177,40 @@ class TestDigestCommand:
         if now.weekday() >= 5 or now.hour != 7:
             call_command('send_telegram_digest')
             assert sent == []
+
+
+@pytest.mark.django_db
+class TestFinanceCommand:
+    def test_shows_receivables_unbilled_and_expenses(self, linked, case_a, client_a):
+        from datetime import date as d, timedelta as td
+        from decimal import Decimal
+        from apps.billing.models import Invoice, InvoicePayment, TimeEntry, CaseExpense
+        from apps.notifications.bot import finance_text
+
+        inv = Invoice.objects.create(case=case_a, client=client_a, status='overdue',
+                                     due_date=d.today() - td(days=3))
+        inv.subtotal = Decimal('50000')
+        inv.save()
+        InvoicePayment.objects.create(invoice=inv, amount=Decimal('20000'))
+        TimeEntry.objects.create(case=case_a, lawyer=linked, date=d.today(),
+                                 hours=Decimal('2'), description='x',
+                                 hourly_rate=Decimal('4000'))
+        CaseExpense.objects.create(case=case_a, description='Пошлина', amount=Decimal('6000'))
+
+        text = finance_text(linked)
+        assert '30 000 ₽' in text.replace('\\', '')      # остаток по счёту
+        assert 'просрочено' in text
+        assert '8 000 ₽' in text.replace('\\', '')       # время без счёта
+        assert '6 000 ₽' in text.replace('\\', '')       # расходы к перевыставлению
+
+    def test_scoped_for_other_lawyer(self, lawyer_b, case_a, client_a):
+        from datetime import date as d, timedelta as td
+        from decimal import Decimal
+        from apps.billing.models import Invoice
+        from apps.notifications.bot import finance_text
+
+        inv = Invoice.objects.create(case=case_a, client=client_a, status='sent',
+                                     due_date=d.today() + td(days=5))
+        inv.subtotal = Decimal('50000')
+        inv.save()
+        assert '0 ₽' in finance_text(lawyer_b).replace('\\', '')

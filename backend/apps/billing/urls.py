@@ -18,6 +18,7 @@ urlpatterns = [
     path('billing/invoices/<int:pk>/email-preview/', views.invoice_email_preview_view, name='invoice-email-preview'),
     path('billing/invoices/<int:pk>/pdf/', views.invoice_pdf_view, name='invoice-pdf'),
     path('billing/invoices/<int:pk>/act/', views.invoice_act_pdf_view, name='invoice-act'),
+    path('billing/expenses/export/', views.expenses_csv_view, name='expense-export'),
     path('billing/expenses/', views.CaseExpenseListCreateView.as_view(), name='expense-list'),
     path('billing/expenses/<int:pk>/', views.CaseExpenseDetailView.as_view(), name='expense-detail'),
     path('billing/invoices/<int:pk>/add-expenses/', views.add_expenses_to_invoice_view, name='invoice-add-expenses'),

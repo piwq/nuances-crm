@@ -119,3 +119,14 @@ class TestBillableDefault:
             'case': case_a.id, 'date': str(date.today()),
             'hours': '1.00', 'description': 'работа'})
         assert resp.data['is_billable'] is True
+
+
+@pytest.mark.django_db
+def test_expenses_csv_export(api, lawyer_a, expense):
+    api.force_authenticate(lawyer_a)
+    resp = api.get('/api/v1/billing/expenses/export/')
+    assert resp.status_code == 200
+    assert resp['Content-Type'].startswith('text/csv')
+    body = resp.content.decode('utf-8-sig')
+    assert 'Госпошлина по иску' in body
+    assert '6000.0' in body

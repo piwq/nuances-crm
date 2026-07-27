@@ -457,6 +457,26 @@ def invoices_csv_view(request):
     return response
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def expenses_csv_view(request):
+    qs = scope_by_case(CaseExpense.objects.select_related('case'), request.user)
+    qs = CaseExpenseFilter(request.query_params, queryset=qs).qs.order_by('-date')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="expenses.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Дата', 'Дело', 'Категория', 'Описание', 'Сумма (₽)',
+                     'Перевыставляется', 'В счёте'])
+    for e in qs:
+        writer.writerow([
+            e.date, str(e.case), e.get_category_display(), e.description,
+            float(e.amount), 'Да' if e.is_billable else 'Нет',
+            e.invoice.invoice_number if e.invoice_id else '',
+        ])
+    return response
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsLawyerOrAdmin])
 def send_invoice_email_view(request, pk):

@@ -49,6 +49,7 @@ HELP_TEXT = (
     '/cases — мои дела\n'
     '/deadlines — процессуальные сроки\n'
     '/hours — мои часы за неделю и месяц\n'
+    '/finance — деньги: дебиторка и невыставленное\n'
     '/find текст — поиск по делам и клиентам'
 )
 NOT_LINKED_TEXT = 'Аккаунт не привязан\\. Откройте Профиль в CRM и нажмите «Привязать Telegram»\\.'
@@ -273,6 +274,54 @@ def hours_text(user):
     )
 
 
+def _money(value):
+    return esc(f'{float(value):,.0f}'.replace(',', ' ')) + ' ₽'
+
+
+def finance_text(user):
+    """Деньги: дебиторка, невыставленное время и расходы к перевыставлению."""
+    from django.db.models import Sum, F, DecimalField
+    from decimal import Decimal
+    from apps.billing.models import Invoice, TimeEntry, CaseExpense
+    from apps.cases.models import Case
+    from common.scoping import scope_by_case, scope_cases
+
+    invoices = scope_by_case(
+        Invoice.objects.filter(status__in=[Invoice.STATUS_SENT, Invoice.STATUS_OVERDUE]), user)
+    outstanding = overdue = Decimal('0')
+    today = date.today()
+    for inv in invoices.prefetch_related('payments'):
+        rest = inv.balance_due
+        if rest <= 0:
+            continue
+        outstanding += rest
+        if inv.due_date and inv.due_date < today:
+            overdue += rest
+
+    entries = TimeEntry.objects.filter(is_billable=True, invoice__isnull=True)
+    if user.is_scoped:
+        entries = entries.filter(lawyer=user)
+    unbilled = entries.aggregate(
+        s=Sum(F('hours') * F('hourly_rate'),
+              output_field=DecimalField(max_digits=14, decimal_places=2)))['s'] or Decimal('0')
+
+    cases = scope_cases(Case.objects.all(), user)
+    pending_expenses = CaseExpense.objects.filter(
+        case__in=cases.values('pk'), is_billable=True, invoice__isnull=True
+    ).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+
+    lines = [
+        '💰 *Деньги:*',
+        f'▫️ Ждём от клиентов: *{_money(outstanding)}*',
+    ]
+    if overdue:
+        lines.append(f'❗️ из них просрочено: *{_money(overdue)}*')
+    lines.append(f'▫️ Время без счёта: {_money(unbilled)}')
+    if pending_expenses:
+        lines.append(f'▫️ Расходы к перевыставлению: {_money(pending_expenses)}')
+    return '\n'.join(lines)
+
+
 def find_text(user, query):
     from django.db.models import Q
     from apps.cases.models import Case
@@ -463,6 +512,7 @@ async def run_polling(token):
         BotCommand(command='cases', description='💼 Мои дела'),
         BotCommand(command='deadlines', description='⚖️ Процессуальные сроки'),
         BotCommand(command='hours', description='⏱ Мои часы за неделю и месяц'),
+        BotCommand(command='finance', description='💰 Деньги: дебиторка и невыставленное'),
         BotCommand(command='find', description='🔍 Поиск по делам и клиентам'),
         BotCommand(command='help', description='Справка по командам'),
     ])
@@ -556,6 +606,10 @@ async def run_polling(token):
     @dp.message(Command('hours'))
     async def hours(message: Message):
         await reply_for(message, hours_text)
+
+    @dp.message(Command('finance'))
+    async def finance(message: Message):
+        await reply_for(message, finance_text)
 
     @dp.message(Command('find'))
     async def find(message: Message, command: CommandObject):
