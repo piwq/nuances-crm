@@ -89,3 +89,33 @@ class TestExpensesToInvoice:
         api.force_authenticate(lawyer_b)
         assert api.post(
             f'/api/v1/billing/invoices/{draft_invoice.id}/add-expenses/').status_code == 404
+
+
+@pytest.mark.django_db
+class TestBillableDefault:
+    def test_multipart_without_flag_stays_billable(self, api, lawyer_a, case_a):
+        """Расход с чеком уходит multipart'ом; DRF считает отсутствующий
+        boolean снятым чекбоксом и молча делал расход неперевыставляемым."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        api.force_authenticate(lawyer_a)
+        resp = api.post('/api/v1/billing/expenses/', {
+            'case': case_a.id, 'description': 'Пошлина с чеком', 'amount': '6000.00',
+            'receipt': SimpleUploadedFile('receipt.pdf', b'%PDF-1.4'),
+        }, format='multipart')
+        assert resp.status_code == 201
+        assert resp.data['is_billable'] is True
+
+    def test_explicit_false_respected(self, api, lawyer_a, case_a):
+        api.force_authenticate(lawyer_a)
+        resp = api.post('/api/v1/billing/expenses/', {
+            'case': case_a.id, 'description': 'За счёт фирмы',
+            'amount': '500', 'is_billable': False})
+        assert resp.data['is_billable'] is False
+
+    def test_time_entry_stays_billable_too(self, api, lawyer_a, case_a):
+        from datetime import date
+        api.force_authenticate(lawyer_a)
+        resp = api.post('/api/v1/billing/time-entries/', {
+            'case': case_a.id, 'date': str(date.today()),
+            'hours': '1.00', 'description': 'работа'})
+        assert resp.data['is_billable'] is True

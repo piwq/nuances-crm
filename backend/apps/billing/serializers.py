@@ -54,6 +54,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        # см. комментарий в CaseExpenseSerializer: multipart без поля = False
+        if 'is_billable' not in self.initial_data:
+            validated_data['is_billable'] = True
         if not validated_data.get('lawyer'):
             validated_data['lawyer'] = self.context['request'].user
         if validated_data.get('hourly_rate') is None:
@@ -101,6 +104,11 @@ class CaseExpenseSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user
+        # DRF трактует отсутствующий boolean в multipart-запросе как False
+        # (логика «снятого чекбокса»), затирая default=True модели — расход
+        # с приложенным чеком переставал перевыставляться клиенту
+        if 'is_billable' not in self.initial_data:
+            validated_data['is_billable'] = True
         return super().create(validated_data)
 
 

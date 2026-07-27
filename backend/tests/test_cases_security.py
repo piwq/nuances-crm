@@ -102,3 +102,20 @@ class TestDeletionGuards:
     def test_case_delete_ok_for_admin(self, api, admin_user, case_a):
         api.force_authenticate(admin_user)
         assert api.delete(f'/api/v1/cases/{case_a.uuid}/').status_code == 204
+
+
+@pytest.mark.django_db
+class TestCaseListAnnotations:
+    def test_task_count_not_multiplied_by_m2m_join(self, api, lawyer_a, lawyer_b, case_a):
+        """Скоупинг джойнит assigned_lawyers — без distinct счётчик задач
+        умножался бы на число назначенных юристов."""
+        from apps.tasks.models import Task
+        case_a.assigned_lawyers.add(lawyer_a, lawyer_b)
+        for i in range(2):
+            Task.objects.create(title=f'Задача {i}', case=case_a,
+                                created_by=lawyer_a, status='todo')
+
+        api.force_authenticate(lawyer_a)
+        resp = api.get('/api/v1/cases/')
+        assert resp.data['count'] == 1
+        assert resp.data['results'][0]['open_tasks_count'] == 2
