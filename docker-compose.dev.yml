@@ -64,7 +64,7 @@ services:
     restart: unless-stopped
     # send_deadline_reminders идемпотентна (дедуп по Notification.key),
     # поэтому часовой цикл безопасен
-    command: sh -c 'while true; do python manage.py send_deadline_reminders; python manage.py mark_overdue_invoices; python manage.py send_telegram_digest; sleep 1800; done'
+    command: sh -c 'while true; do python manage.py send_deadline_reminders; python manage.py mark_overdue_invoices; python manage.py generate_recurring_invoices; python manage.py send_telegram_digest; sleep 1800; done'
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       DATABASE_URL: postgres://postgres:postgres@db:5432/legal_crm

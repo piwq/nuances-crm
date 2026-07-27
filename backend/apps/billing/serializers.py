@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from common.scoping import user_can_access_case
-from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment
+from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice
 
 
 def _check_case_access(serializer, case):
@@ -140,6 +140,47 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     def validate_case(self, case):
         return _check_case_access(self, case)
+
+    def create(self, validated_data):
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class RecurringInvoiceSerializer(serializers.ModelSerializer):
+    frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
+    next_date = serializers.SerializerMethodField()
+    case_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecurringInvoice
+        fields = [
+            'id', 'case', 'case_title', 'description', 'amount', 'tax_rate',
+            'frequency', 'frequency_display', 'day_of_month', 'payment_term_days',
+            'start_date', 'end_date', 'is_active', 'last_generated', 'next_date',
+            'created_at',
+        ]
+        read_only_fields = ['last_generated', 'created_at']
+
+    def get_next_date(self, obj):
+        nxt = obj.next_occurrence()
+        return nxt.isoformat() if nxt else None
+
+    def get_case_title(self, obj):
+        return str(obj.case)
+
+    def validate_case(self, case):
+        return _check_case_access(self, case)
+
+    def validate_day_of_month(self, day):
+        if not 1 <= day <= 28:
+            raise serializers.ValidationError(
+                'День выставления — от 1 до 28 (иначе в феврале правило «поедет»).')
+        return day
+
+    def validate_amount(self, amount):
+        if amount <= 0:
+            raise serializers.ValidationError('Сумма должна быть больше нуля.')
+        return amount
 
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user

@@ -212,6 +212,49 @@
               </v-card-actions>
             </v-card>
           </v-col>
+
+          <!-- Retainer -->
+          <v-col cols="12">
+            <v-card>
+              <v-card-title class="d-flex justify-space-between align-center">
+                Абонентское обслуживание
+                <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-autorenew" @click="openRetainerDialog">
+                  Настроить
+                </v-btn>
+              </v-card-title>
+              <v-divider />
+              <v-list v-if="retainers.length" density="compact">
+                <v-list-item v-for="r in retainers" :key="r.id">
+                  <v-list-item-title class="text-body-2 font-weight-medium">
+                    {{ r.description }} — {{ formatCurrency(r.amount) }}
+                    <span v-if="Number(r.tax_rate) > 0" class="text-caption text-medium-emphasis">+ НДС {{ r.tax_rate }}%</span>
+                  </v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">
+                    {{ r.frequency_display }}, {{ r.day_of_month }}-го числа ·
+                    <template v-if="r.is_active && r.next_date">следующий счёт {{ formatDate(r.next_date) }}</template>
+                    <template v-else-if="r.is_active">правило исчерпано</template>
+                    <template v-else>остановлено</template>
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <div class="d-flex align-center gap-1">
+                      <v-btn size="x-small" variant="text" :loading="runningRetainer === r.id"
+                             :disabled="!r.is_active" @click="runRetainer(r)">
+                        Выставить сейчас
+                      </v-btn>
+                      <v-btn :icon="r.is_active ? 'mdi-pause' : 'mdi-play'" size="x-small" variant="text"
+                             @click="toggleRetainer(r)" />
+                      <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error"
+                             @click="deleteRetainer(r)" />
+                    </div>
+                  </template>
+                </v-list-item>
+              </v-list>
+              <v-card-text v-else class="text-medium-emphasis text-body-2">
+                Правил нет. Настройте, если клиент обслуживается по фиксированной ежемесячной оплате —
+                счета будут выставляться автоматически.
+              </v-card-text>
+            </v-card>
+          </v-col>
         </v-row>
       </v-window-item>
 
@@ -409,6 +452,55 @@
       </v-card>
     </v-dialog>
 
+    <!-- Retainer Dialog -->
+    <form-dialog v-model="retainerDialog" max-width="520">
+      <v-card>
+        <v-card-title>Абонентское обслуживание</v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4">
+          <v-text-field v-model="retainerForm.description" label="Описание услуги" class="mb-2" />
+          <v-row dense>
+            <v-col cols="6">
+              <v-text-field v-model.number="retainerForm.amount" label="Сумма без НДС *" type="number" suffix="₽" />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field v-model.number="retainerForm.tax_rate" label="НДС (%)" type="number" min="0" max="100" />
+            </v-col>
+          </v-row>
+          <v-row dense>
+            <v-col cols="6">
+              <v-select
+                v-model="retainerForm.frequency"
+                :items="[{ title: 'Ежемесячно', value: 'monthly' }, { title: 'Ежеквартально', value: 'quarterly' }]"
+                label="Периодичность"
+              />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field v-model.number="retainerForm.day_of_month" label="День выставления" type="number" min="1" max="28" />
+            </v-col>
+          </v-row>
+          <v-row dense>
+            <v-col cols="6">
+              <date-field v-model="retainerForm.start_date" label="Действует с" />
+            </v-col>
+            <v-col cols="6">
+              <date-field v-model="retainerForm.end_date" label="Действует по" clearable />
+            </v-col>
+          </v-row>
+          <v-text-field v-model.number="retainerForm.payment_term_days" label="Срок оплаты (дней)" type="number" min="1" />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="retainerDialog = false">Отмена</v-btn>
+          <v-btn color="primary" variant="elevated" :loading="savingRetainer"
+                 :disabled="!retainerForm.amount" @click="saveRetainer">
+            Сохранить
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </form-dialog>
+
     <!-- Assign Lawyer Dialog -->
     <v-dialog v-model="assignDialog" max-width="420">
       <v-card>
@@ -444,7 +536,7 @@ import { useCasesStore } from '@/stores/cases'
 import { useDocumentsStore } from '@/stores/documents'
 import { useTasksStore } from '@/stores/tasks'
 import { useBillingStore } from '@/stores/billing'
-import { formatDate, formatDateTime } from '@/utils/formatters'
+import { formatDate, formatDateTime, formatCurrency } from '@/utils/formatters'
 import { CASE_STATUSES, CASE_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, INVOICE_STATUSES, DOCUMENT_TYPES } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
@@ -452,6 +544,7 @@ import { useNotification } from '@/composables/useNotification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import api from '@/plugins/axios'
 import DateField from '@/components/common/DateField.vue'
+import FormDialog from '@/components/common/FormDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -497,6 +590,96 @@ const taskSaving = ref(false)
 const taskForm = ref({ title: '', description: '', assigned_to: null, due_date: null, priority: 'medium' })
 const lawyers = ref([])
 
+const retainers = ref([])
+const retainerDialog = ref(false)
+const savingRetainer = ref(false)
+const runningRetainer = ref(null)
+const retainerForm = ref(emptyRetainer())
+
+function emptyRetainer() {
+  return {
+    description: 'Абонентское юридическое обслуживание',
+    amount: null,
+    tax_rate: 0,
+    frequency: 'monthly',
+    day_of_month: 1,
+    payment_term_days: 14,
+    start_date: new Date().toISOString().slice(0, 10),
+    end_date: null,
+  }
+}
+
+async function loadRetainers() {
+  if (!caseItem.value) return
+  try {
+    const { data } = await api.get('/api/v1/billing/recurring/', {
+      params: { case: caseItem.value.id },
+    })
+    retainers.value = data.results || data
+  } catch {
+    // блок необязательный, молча пропускаем
+  }
+}
+
+function openRetainerDialog() {
+  retainerForm.value = emptyRetainer()
+  retainerDialog.value = true
+}
+
+async function saveRetainer() {
+  savingRetainer.value = true
+  try {
+    await api.post('/api/v1/billing/recurring/', {
+      case: caseItem.value.id,
+      ...retainerForm.value,
+    })
+    await loadRetainers()
+    success('Правило создано')
+    retainerDialog.value = false
+  } catch (e) {
+    const data = e.response?.data
+    error(data?.day_of_month?.[0] || data?.amount?.[0] || 'Ошибка сохранения правила')
+  } finally {
+    savingRetainer.value = false
+  }
+}
+
+async function runRetainer(rule) {
+  runningRetainer.value = rule.id
+  try {
+    const { data } = await api.post(`/api/v1/billing/recurring/${rule.id}/run/`)
+    await Promise.all([loadRetainers(), billingStore.fetchInvoices({ case: caseItem.value.id, page_size: 50 })])
+    success(`Счёт ${data.invoice_number} выставлен`)
+  } catch (e) {
+    error(e.response?.data?.detail || 'Не удалось выставить счёт')
+  } finally {
+    runningRetainer.value = null
+  }
+}
+
+async function toggleRetainer(rule) {
+  try {
+    await api.patch(`/api/v1/billing/recurring/${rule.id}/`, { is_active: !rule.is_active })
+    await loadRetainers()
+    success(rule.is_active ? 'Правило остановлено' : 'Правило возобновлено')
+  } catch {
+    error('Ошибка')
+  }
+}
+
+async function deleteRetainer(rule) {
+  const ok = await confirmDlg('Удалить правило?',
+    `${rule.description} — ${rule.frequency_display}. Уже выставленные счета останутся.`)
+  if (!ok) return
+  try {
+    await api.delete(`/api/v1/billing/recurring/${rule.id}/`)
+    await loadRetainers()
+    success('Правило удалено')
+  } catch {
+    error('Ошибка удаления')
+  }
+}
+
 const assignDialog = ref(false)
 const assignSaving = ref(false)
 const assignLawyerId = ref(null)
@@ -534,6 +717,7 @@ async function fetchData() {
       tasksStore.fetchTasks({ case: caseId, page_size: 100 }),
       billingStore.fetchTimeEntries({ case: caseId, page_size: 100 }),
       billingStore.fetchInvoices({ case: caseId, page_size: 50 }),
+      loadRetainers(),
     ])
   } catch (e) {
     error('Ошибка загрузки данных')

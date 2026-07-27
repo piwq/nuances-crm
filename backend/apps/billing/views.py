@@ -11,10 +11,10 @@ from django.db.models.functions import TruncMonth
 
 from common.permissions import IsAdmin
 from common.scoping import scope_by_case
-from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment
+from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment, RecurringInvoice
 from .serializers import (
     TimeEntrySerializer, InvoiceSerializer, InvoiceListSerializer, InvoiceItemSerializer,
-    InvoicePaymentSerializer,
+    InvoicePaymentSerializer, RecurringInvoiceSerializer,
 )
 
 
@@ -194,6 +194,37 @@ def mark_paid_view(request, pk):
     invoice.sync_payment_status()
     invoice.refresh_from_db()
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
+
+
+class RecurringInvoiceListCreateView(generics.ListCreateAPIView):
+    serializer_class = RecurringInvoiceSerializer
+    filterset_fields = ['case', 'is_active']
+
+    def get_queryset(self):
+        return scope_by_case(
+            RecurringInvoice.objects.select_related('case'), self.request.user)
+
+
+class RecurringInvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = RecurringInvoiceSerializer
+
+    def get_queryset(self):
+        return scope_by_case(RecurringInvoice.objects.all(), self.request.user)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def recurring_run_now_view(request, pk):
+    """Выставить очередной счёт по правилу вручную, не дожидаясь расписания."""
+    rule = scope_by_case(RecurringInvoice.objects.all(), request.user).filter(pk=pk).first()
+    if rule is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    invoice = rule.generate_invoice()
+    if invoice is None:
+        return Response({'detail': 'Правило исчерпано: дата окончания уже прошла.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    return Response(InvoiceSerializer(invoice, context={'request': request}).data,
+                    status=status.HTTP_201_CREATED)
 
 
 class InvoicePaymentListCreateView(generics.ListCreateAPIView):

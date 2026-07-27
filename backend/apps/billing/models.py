@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from django.db import models, transaction, IntegrityError
 from django.conf import settings
@@ -162,6 +162,108 @@ class Invoice(models.Model):
         else:
             return
         self.save(update_fields=fields)
+
+
+def _shift_months(year, month, step):
+    total = year * 12 + (month - 1) + step
+    return total // 12, total % 12 + 1
+
+
+class RecurringInvoice(models.Model):
+    """Правило абонентского обслуживания: счёт выставляется сам по расписанию."""
+    FREQ_MONTHLY = 'monthly'
+    FREQ_QUARTERLY = 'quarterly'
+    FREQ_CHOICES = [
+        (FREQ_MONTHLY, 'Ежемесячно'),
+        (FREQ_QUARTERLY, 'Ежеквартально'),
+    ]
+
+    case = models.ForeignKey('cases.Case', on_delete=models.CASCADE,
+                             related_name='recurring_invoices', verbose_name='Дело')
+    description = models.CharField(
+        max_length=255, default='Абонентское юридическое обслуживание',
+        verbose_name='Описание услуги')
+    amount = models.DecimalField(max_digits=12, decimal_places=2,
+                                 verbose_name='Сумма без НДС')
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0,
+                                   verbose_name='НДС (%)')
+    frequency = models.CharField(max_length=20, choices=FREQ_CHOICES, default=FREQ_MONTHLY,
+                                 verbose_name='Периодичность')
+    day_of_month = models.PositiveSmallIntegerField(
+        default=1, verbose_name='День выставления',
+        help_text='1–28; в коротких месяцах переносится на последний день')
+    payment_term_days = models.PositiveSmallIntegerField(
+        default=14, verbose_name='Срок оплаты (дней)')
+    start_date = models.DateField(default=date.today, verbose_name='Действует с')
+    end_date = models.DateField(null=True, blank=True, verbose_name='Действует по')
+    is_active = models.BooleanField(default=True, verbose_name='Активно')
+    last_generated = models.DateField(null=True, blank=True, verbose_name='Последний счёт')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='created_recurring_invoices')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Повторяющийся счёт'
+        verbose_name_plural = 'Повторяющиеся счета'
+
+    def __str__(self):
+        return f'{self.get_frequency_display()} {self.amount} ₽ — {self.case}'
+
+    @property
+    def step_months(self):
+        return 3 if self.frequency == self.FREQ_QUARTERLY else 1
+
+    def _occurrence(self, year, month):
+        import calendar
+        day = min(self.day_of_month, calendar.monthrange(year, month)[1])
+        return date(year, month, day)
+
+    def next_occurrence(self):
+        """Дата следующего выставления (None, если правило исчерпано)."""
+        if self.last_generated:
+            year, month = _shift_months(
+                self.last_generated.year, self.last_generated.month, self.step_months)
+            nxt = self._occurrence(year, month)
+        else:
+            nxt = self._occurrence(self.start_date.year, self.start_date.month)
+            if nxt < self.start_date:
+                year, month = _shift_months(
+                    self.start_date.year, self.start_date.month, self.step_months)
+                nxt = self._occurrence(year, month)
+        if self.end_date and nxt > self.end_date:
+            return None
+        return nxt
+
+    def is_due(self, today=None):
+        today = today or date.today()
+        if not self.is_active:
+            return False
+        nxt = self.next_occurrence()
+        return nxt is not None and nxt <= today
+
+    def generate_invoice(self):
+        """Создать очередной счёт-черновик. Возвращает Invoice или None."""
+        issue = self.next_occurrence()
+        if issue is None:
+            return None
+        invoice = Invoice.objects.create(
+            case=self.case,
+            client=self.case.client,
+            issue_date=issue,
+            due_date=issue + timedelta(days=self.payment_term_days),
+            tax_rate=self.tax_rate,
+            notes=f'Автоматически по правилу «{self.description}»',
+            created_by=self.created_by,
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice, description=self.description,
+            quantity=1, unit_price=self.amount)
+        invoice.recalculate_totals()
+        self.last_generated = issue
+        self.save(update_fields=['last_generated'])
+        return invoice
 
 
 class InvoicePayment(models.Model):
