@@ -52,3 +52,32 @@ class TestPublicProfile:
         for row in resp.data:
             for field in ('email', 'phone', 'telegram_chat_id'):
                 assert field not in row
+
+
+@pytest.mark.django_db
+class TestUserWriteResponses:
+    """Ответы на запись должны совпадать по форме со списком.
+
+    Фронтенд вставляет созданного пользователя прямо в таблицу и после
+    сохранения ищет строку по id. Раньше POST отвечал UserCreateSerializer,
+    а PATCH — UserUpdateSerializer, и в обоих не было id: кнопки в новой
+    строке уходили на /api/v1/users/undefined/ и получали 404.
+    """
+
+    def test_create_returns_id_and_state(self, api, admin_user):
+        api.force_authenticate(admin_user)
+        resp = api.post('/api/v1/users/', {
+            'username': 'newbie', 'email': 'n@test.com', 'password': 'Vq7#strong-pass',
+            'first_name': 'Новый', 'last_name': 'Юрист', 'role': 'lawyer'})
+        assert resp.status_code == 201
+        for field in ('id', 'is_active', 'full_name', 'role'):
+            assert field in resp.data, f'нет поля {field}'
+        assert resp.data['id']
+
+    def test_toggle_active_returns_id(self, api, admin_user, lawyer_a):
+        api.force_authenticate(admin_user)
+        resp = api.patch(f'/api/v1/users/{lawyer_a.id}/', {'is_active': False})
+        assert resp.status_code == 200
+        assert resp.data['id'] == lawyer_a.id
+        assert resp.data['is_active'] is False
+        assert 'full_name' in resp.data

@@ -61,6 +61,15 @@ class UserListCreateView(generics.ListCreateAPIView):
             return UserCreateSerializer
         return UserSerializer
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        # Отвечаем в формате списка: фронтенд вставляет созданного пользователя
+        # прямо в таблицу, а в UserCreateSerializer нет ни id, ни is_active —
+        # строка получалась нерабочей (кнопки уходили на /users/undefined/)
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = CustomUser.objects.all()
@@ -70,6 +79,12 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.method in ('PUT', 'PATCH'):
             return UserUpdateSerializer
         return UserSerializer
+
+    def update(self, request, *args, **kwargs):
+        super().update(request, *args, **kwargs)
+        # причина та же, что и в create: UserUpdateSerializer не содержит id,
+        # и строка таблицы после сохранения не находила себя по нему
+        return Response(UserSerializer(self.get_object()).data)
 
 
 @api_view(['POST'])
