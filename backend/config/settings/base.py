@@ -229,11 +229,28 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '{levelname} {asctime} {name} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
-        'console': {'class': 'logging.StreamHandler'},
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'standard'},
     },
     'root': {
         'handlers': ['console'],
-        'level': 'DEBUG',
+        'level': config('LOG_LEVEL', default='INFO'),
+    },
+    'loggers': {
+        # библиотеки, заваливающие лог отладкой (сабсеттинг шрифтов в PDF,
+        # селектор asyncio на каждый запрос) — только предупреждения
+        'fontTools': {'level': 'WARNING'},
+        'weasyprint': {'level': 'WARNING'},
+        'PIL': {'level': 'WARNING'},
+        'asyncio': {'level': 'INFO'},
+        'urllib3': {'level': 'WARNING'},
+        'faker': {'level': 'WARNING'},
+        'apps': {'level': config('LOG_LEVEL', default='INFO')},
     },
 }
