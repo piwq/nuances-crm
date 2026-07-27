@@ -209,6 +209,103 @@ class CaseNoteDetailView(generics.DestroyAPIView):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def case_timeline_view(request, uuid):
+    """Единая хронология дела: документы, задачи, заметки, события, счета,
+    записи времени и действия из аудита — одной лентой по датам.
+
+    Фронт группирует и фильтрует по `kind`, поэтому иконки/цвета здесь
+    не задаются — только данные.
+    """
+    import datetime as dt
+    from django.utils import timezone
+    from apps.audit.models import ActivityLog
+
+    case = get_object_or_404(
+        scope_cases(Case.objects.select_related('client', 'created_by'), request.user),
+        uuid=uuid,
+    )
+
+    def at(value):
+        """date/datetime → aware datetime для общей сортировки."""
+        if value is None:
+            return None
+        if isinstance(value, dt.datetime):
+            return value if timezone.is_aware(value) else timezone.make_aware(value)
+        return timezone.make_aware(dt.datetime.combine(value, dt.time.min))
+
+    items = []
+
+    def add(kind, when, title, subtitle='', author='', meta=None):
+        moment = at(when)
+        if moment is None:
+            return
+        items.append({
+            'kind': kind,
+            'timestamp': moment.isoformat(),
+            'title': title,
+            'subtitle': subtitle,
+            'author': author,
+            'meta': meta or {},
+        })
+
+    def who(user):
+        return (user.get_full_name() or user.username) if user else ''
+
+    add('case_created', case.created_at, f'Дело заведено: {case.title}',
+        f'Клиент: {case.client.display_name}', who(case.created_by))
+
+    for doc in case.documents.select_related('uploaded_by'):
+        add('document', doc.uploaded_at, doc.title,
+            doc.get_document_type_display(), who(doc.uploaded_by),
+            {'uuid': str(doc.uuid)})
+
+    for task in case.tasks.select_related('assigned_to', 'created_by'):
+        due = f'срок {task.due_date.strftime("%d.%m.%Y")}' if task.due_date else ''
+        add('task', task.created_at, f'Задача: {task.title}', due, who(task.created_by),
+            {'id': task.id, 'status': task.status})
+        if task.completed_at:
+            add('task_done', task.completed_at, f'Задача выполнена: {task.title}',
+                '', who(task.assigned_to), {'id': task.id})
+
+    for note in case.notes.select_related('author'):
+        text = note.text if len(note.text) <= 160 else note.text[:157] + '…'
+        add('note', note.created_at, 'Заметка', text, who(note.author))
+
+    for event in case.events.select_related('created_by'):
+        local = timezone.localtime(event.start_datetime)
+        sub = local.strftime('%H:%M')
+        if event.location:
+            sub += f' · {event.location}'
+        add('event', event.start_datetime,
+            f'{event.get_event_type_display()}: {event.title}', sub, who(event.created_by),
+            {'id': event.id})
+
+    for inv in case.invoices.all():
+        add('invoice', inv.created_at, f'Счёт {inv.invoice_number}',
+            f'{inv.total} ₽ · срок оплаты {inv.due_date.strftime("%d.%m.%Y")}',
+            '', {'id': inv.id, 'status': inv.status})
+        if inv.paid_date:
+            add('invoice_paid', inv.paid_date, f'Счёт {inv.invoice_number} оплачен',
+                f'{inv.total} ₽', '', {'id': inv.id})
+
+    if case.key_deadline:
+        note = case.key_deadline_note or 'Ключевой процессуальный срок'
+        add('deadline', case.key_deadline, 'Процессуальный срок', note)
+
+    # действия из аудита, кроме дублирующих создание дела
+    for log in (ActivityLog.objects.filter(resource_type='Case', resource_uuid=case.uuid)
+                .select_related('user')[:100]):
+        if log.action == 'CREATE':
+            continue
+        add('activity', log.timestamp, log.description, '', who(log.user),
+            {'action': log.action})
+
+    items.sort(key=lambda i: i['timestamp'], reverse=True)
+    return Response({'count': len(items), 'results': items[:300]})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def conflict_check_view(request):
     """Проверка конфликта интересов по ФИО/названию и/или ИНН.
 

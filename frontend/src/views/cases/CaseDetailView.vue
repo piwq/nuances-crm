@@ -47,7 +47,7 @@
       <v-tab value="tasks">Задачи ({{ openTasksCount }})</v-tab>
       <v-tab value="billing">Биллинг</v-tab>
       <v-tab value="notes" @click="loadNotes">Заметки ({{ notes.length }})</v-tab>
-      <v-tab value="history" @click="loadHistory">История</v-tab>
+      <v-tab value="history" @click="loadHistory">Хронология</v-tab>
     </v-tabs>
 
     <v-window v-model="tab">
@@ -261,32 +261,50 @@
         </v-card>
       </v-window-item>
 
-      <!-- History Tab -->
+      <!-- Timeline Tab -->
       <v-window-item value="history">
         <v-card>
-          <v-card-title>История изменений</v-card-title>
+          <v-card-title class="d-flex flex-wrap align-center gap-2">
+            Хронология дела
+            <v-spacer />
+            <v-chip-group v-model="timelineFilter" selected-class="bg-primary" column>
+              <v-chip v-for="f in TIMELINE_FILTERS" :key="f.value" :value="f.value" size="small" variant="outlined">
+                {{ f.label }}
+              </v-chip>
+            </v-chip-group>
+          </v-card-title>
           <v-divider />
           <div v-if="historyLoading" class="d-flex justify-center pa-8">
             <v-progress-circular indeterminate color="primary" />
           </div>
-          <v-timeline v-else-if="history.length" density="compact" side="end" class="pa-4">
-            <v-timeline-item
-              v-for="entry in history"
-              :key="entry.id"
-              :dot-color="actionColor(entry.action)"
-              size="x-small"
-            >
-              <div class="d-flex justify-space-between align-start">
-                <div>
-                  <div class="text-body-2 font-weight-medium">{{ entry.description }}</div>
-                  <div class="text-caption text-medium-emphasis">{{ entry.user_name }}</div>
-                </div>
-                <div class="text-caption text-medium-emphasis ml-4 flex-shrink-0">{{ formatDateTime(entry.timestamp) }}</div>
-              </div>
-            </v-timeline-item>
-          </v-timeline>
+          <template v-else-if="timelineGroups.length">
+            <div v-for="group in timelineGroups" :key="group.day" class="timeline-group">
+              <div class="timeline-day">{{ group.day }}</div>
+              <v-timeline density="compact" side="end" truncate-line="both" class="px-4 pb-2">
+                <v-timeline-item
+                  v-for="(entry, i) in group.items"
+                  :key="`${entry.kind}-${entry.timestamp}-${i}`"
+                  :dot-color="timelineMeta(entry).color"
+                  :icon="timelineMeta(entry).icon"
+                  icon-color="white"
+                  size="small"
+                >
+                  <div class="d-flex justify-space-between align-start ga-4">
+                    <div class="flex-grow-1">
+                      <div class="text-body-2 font-weight-medium">{{ entry.title }}</div>
+                      <div v-if="entry.subtitle" class="text-caption text-medium-emphasis">{{ entry.subtitle }}</div>
+                      <div v-if="entry.author" class="text-caption text-disabled">{{ entry.author }}</div>
+                    </div>
+                    <div class="text-caption text-medium-emphasis flex-shrink-0">
+                      {{ formatTimeOnly(entry.timestamp) }}
+                    </div>
+                  </div>
+                </v-timeline-item>
+              </v-timeline>
+            </div>
+          </template>
           <v-card-text v-else class="text-center pa-12 text-medium-emphasis">
-            История изменений пуста
+            {{ history.length ? 'По выбранному фильтру событий нет' : 'Хронология пуста' }}
           </v-card-text>
         </v-card>
       </v-window-item>
@@ -779,12 +797,56 @@ function taskPriorityColor(p) {
   return TASK_PRIORITIES.find(tp => tp.value === p)?.color || 'grey'
 }
 
-const ACTION_COLORS = {
-  CREATE: 'success', UPDATE: 'primary', DELETE: 'error',
-  STATUS_CHANGE: 'warning', ASSIGN_LAWYER: 'info',
-  UPLOAD: 'teal', DOWNLOAD: 'grey',
+// вид записи хронологии → иконка и цвет точки на линии
+const TIMELINE_META = {
+  case_created: { icon: 'mdi-flag-variant', color: 'primary' },
+  document: { icon: 'mdi-file-document-outline', color: 'teal' },
+  task: { icon: 'mdi-checkbox-blank-circle-outline', color: 'blue-grey' },
+  task_done: { icon: 'mdi-check-circle-outline', color: 'success' },
+  note: { icon: 'mdi-note-text-outline', color: 'amber-darken-2' },
+  event: { icon: 'mdi-calendar-clock', color: 'deep-purple' },
+  invoice: { icon: 'mdi-receipt-text-outline', color: 'indigo' },
+  invoice_paid: { icon: 'mdi-cash-check', color: 'success' },
+  deadline: { icon: 'mdi-gavel', color: 'error' },
+  activity: { icon: 'mdi-history', color: 'grey' },
 }
-function actionColor(action) { return ACTION_COLORS[action] || 'grey' }
+function timelineMeta(entry) {
+  return TIMELINE_META[entry.kind] || { icon: 'mdi-circle-small', color: 'grey' }
+}
+
+const TIMELINE_FILTERS = [
+  { value: 'all', label: 'Всё' },
+  { value: 'document', label: 'Документы' },
+  { value: 'task', label: 'Задачи' },
+  { value: 'note', label: 'Заметки' },
+  { value: 'event', label: 'События' },
+  { value: 'invoice', label: 'Биллинг' },
+]
+const TIMELINE_FILTER_KINDS = {
+  document: ['document'],
+  task: ['task', 'task_done'],
+  note: ['note'],
+  event: ['event', 'deadline'],
+  invoice: ['invoice', 'invoice_paid'],
+}
+const timelineFilter = ref('all')
+
+const timelineGroups = computed(() => {
+  const kinds = TIMELINE_FILTER_KINDS[timelineFilter.value]
+  const list = kinds ? history.value.filter(e => kinds.includes(e.kind)) : history.value
+  const groups = []
+  for (const entry of list) {
+    const day = formatDate(entry.timestamp)
+    const last = groups[groups.length - 1]
+    if (last && last.day === day) last.items.push(entry)
+    else groups.push({ day, items: [entry] })
+  }
+  return groups
+})
+
+function formatTimeOnly(ts) {
+  return new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+}
 
 async function loadNotes() {
   if (notesLoaded || !caseItem.value) return
@@ -832,7 +894,7 @@ async function loadHistory() {
   if (historyLoaded || !caseItem.value) return
   historyLoading.value = true
   try {
-    const { data } = await api.get(`/api/v1/cases/${caseItem.value.uuid}/history/`)
+    const { data } = await api.get(`/api/v1/cases/${caseItem.value.uuid}/timeline/`)
     history.value = data.results || data
     historyLoaded = true
   } catch {
@@ -852,5 +914,21 @@ onMounted(fetchData)
 .drop-zone--active {
   border: 2px dashed rgb(var(--v-theme-primary)) !important;
   background: rgba(var(--v-theme-primary), 0.04) !important;
+}
+.timeline-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 16px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--v-theme-primary));
+  background: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.timeline-group + .timeline-group {
+  margin-top: 4px;
 }
 </style>
