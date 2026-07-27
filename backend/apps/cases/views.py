@@ -293,6 +293,14 @@ def case_timeline_view(request, uuid):
                 f'Оплата {pay.amount} ₽ по счёту {inv.invoice_number}',
                 sub, who(pay.created_by), {'id': inv.id})
 
+    for exp in case.expenses.all():
+        sub = exp.get_category_display()
+        if not exp.is_billable:
+            sub += ' · за счёт фирмы'
+        elif exp.invoice_id:
+            sub += ' · перевыставлен клиенту'
+        add('expense', exp.date, f'Расход {exp.amount} ₽: {exp.description}', sub)
+
     if case.key_deadline:
         note = case.key_deadline_note or 'Ключевой процессуальный срок'
         add('deadline', case.key_deadline, 'Процессуальный срок', note)

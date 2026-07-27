@@ -1149,6 +1149,7 @@ const TIMELINE_META = {
   event: { icon: 'mdi-calendar-clock', color: 'deep-purple' },
   invoice: { icon: 'mdi-receipt-text-outline', color: 'indigo' },
   invoice_paid: { icon: 'mdi-cash-check', color: 'success' },
+  expense: { icon: 'mdi-cash-minus', color: 'orange-darken-2' },
   deadline: { icon: 'mdi-gavel', color: 'error' },
   activity: { icon: 'mdi-history', color: 'grey' },
 }
@@ -1169,7 +1170,7 @@ const TIMELINE_FILTER_KINDS = {
   task: ['task', 'task_done'],
   note: ['note'],
   event: ['event', 'deadline'],
-  invoice: ['invoice', 'invoice_paid'],
+  invoice: ['invoice', 'invoice_paid', 'expense'],
 }
 const timelineFilter = ref('all')
 

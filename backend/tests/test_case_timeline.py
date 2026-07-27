@@ -5,7 +5,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
-from apps.billing.models import Invoice, InvoicePayment
+from apps.billing.models import Invoice, InvoicePayment, CaseExpense
 from apps.cases.models import CaseNote
 from apps.documents.models import Document
 from apps.tasks.models import Task, Event
@@ -35,6 +35,9 @@ def rich_case(case_a, lawyer_a, client_a):
     InvoicePayment.objects.create(invoice=invoice, amount=Decimal('5000.00'),
                                   created_by=lawyer_a)
     invoice.sync_payment_status()
+    CaseExpense.objects.create(
+        case=case_a, category='state_fee', description='Госпошлина',
+        amount=Decimal('6000.00'), created_by=lawyer_a)
     case_a.key_deadline = date.today() + timedelta(days=14)
     case_a.key_deadline_note = 'Подача апелляции'
     case_a.save()
@@ -49,7 +52,7 @@ class TestCaseTimeline:
         assert resp.status_code == 200
         kinds = {i['kind'] for i in resp.data['results']}
         assert {'case_created', 'document', 'task', 'task_done', 'note',
-                'event', 'invoice', 'invoice_paid', 'deadline'} <= kinds
+                'event', 'invoice', 'invoice_paid', 'deadline', 'expense'} <= kinds
 
     def test_sorted_newest_first(self, api, lawyer_a, rich_case):
         api.force_authenticate(lawyer_a)
