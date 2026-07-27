@@ -1,5 +1,6 @@
 from pathlib import Path
 from decouple import config
+from django.core.exceptions import ImproperlyConfigured  # noqa: F401 — используется в production.py
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -78,11 +79,16 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
+# хост Redis из окружения: локальный запуск и другое имя сервиса
+# не должны требовать правки кода
+REDIS_HOST = config('REDIS_HOST', default='redis')
+REDIS_PORT = config('REDIS_PORT', default=6379, cast=int)
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [("redis", 6379)],
+            'hosts': [(REDIS_HOST, REDIS_PORT)],
         },
     },
 }

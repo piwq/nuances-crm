@@ -1,6 +1,10 @@
-# Явное имя проекта, отличное от dev (nuances-crm): иначе запуск этого файла
-# пересоздаёт dev-контейнеры и подменяет тома.
-name: nuances-crm-demo
+# Боевой стек CRM «Нюансы».
+#
+# Запуск:  docker compose up -d --build
+# Логи:    docker compose logs -f backend
+# Данные живут в томах nuances-crm-prod_* и не пересекаются с dev-стеком
+# (у него собственное имя проекта nuances-crm).
+name: nuances-crm-prod
 
 services:
   db:
@@ -9,7 +13,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-legal_crm}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD обязателен}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -25,18 +29,17 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    # миграции и статика — на старте; демо-данные НЕ сидируются
     command: >
-      sh -c "python manage.py migrate &&
+      sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
-             python manage.py seed_demo --skip-if-exists &&
-             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+             daphne -b 0.0.0.0 -p 8000 --proxy-headers config.asgi:application"
     volumes:
-      - ./backend:/app
       - media_files:/app/media
       - static_files:/app/staticfiles
     env_file: .env
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.demo
+      DJANGO_SETTINGS_MODULE: config.settings.production
     depends_on:
       db:
         condition: service_healthy
@@ -51,14 +54,20 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    # send_deadline_reminders идемпотентна (дедуп по Notification.key),
-    # поэтому часовой цикл безопасен
-    command: sh -c 'while true; do python manage.py send_deadline_reminders; python manage.py mark_overdue_invoices; python manage.py generate_recurring_invoices; python manage.py send_telegram_digest; sleep 1800; done'
+    # все команды идемпотентны (дедуп по ключу/дате), поэтому получасовой цикл безопасен
+    command: >
+      sh -c 'while true; do
+               python manage.py send_deadline_reminders;
+               python manage.py mark_overdue_invoices;
+               python manage.py generate_recurring_invoices;
+               python manage.py send_telegram_digest;
+               sleep 1800;
+             done'
     volumes:
-      - ./backend:/app
+      - media_files:/app/media
     env_file: .env
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.demo
+      DJANGO_SETTINGS_MODULE: config.settings.production
     depends_on:
       db:
         condition: service_healthy
@@ -72,13 +81,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    # при пустом TELEGRAM_BOT_TOKEN команда переходит в режим ожидания
+    # при пустом TELEGRAM_BOT_TOKEN команда просто ждёт, не перезапускаясь по кругу
     command: python manage.py run_telegram_bot
-    volumes:
-      - ./backend:/app
     env_file: .env
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.demo
+      DJANGO_SETTINGS_MODULE: config.settings.production
     depends_on:
       db:
         condition: service_healthy
@@ -98,9 +105,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # пусто = относительные URL: всё (API, WS, static) ходит через nginx
-        # того же origin. Намеренно не берём значение из .env (там адрес для
-        # dev-режима с отдельным backend на :8000).
+        # пусто = относительные URL: API, WS и статика идут через тот же nginx
         VITE_API_BASE_URL: ""
     restart: unless-stopped
     networks:
