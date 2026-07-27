@@ -133,6 +133,70 @@ class Invoice(models.Model):
         self.subtotal = sum(item.amount for item in self.items.all())
         self.save(update_fields=['subtotal', 'tax_amount', 'total'])
 
+    @property
+    def paid_amount(self):
+        annotated = getattr(self, 'paid_total_annotated', None)
+        if annotated is not None:
+            return annotated
+        return self.payments.aggregate(s=models.Sum('amount'))['s'] or Decimal('0')
+
+    @property
+    def balance_due(self):
+        return (self.total or Decimal('0')) - self.paid_amount
+
+    def sync_payment_status(self):
+        """Статус и дата оплаты — производные от платежей, а не наоборот."""
+        paid = self.payments.aggregate(s=models.Sum('amount'))['s'] or Decimal('0')
+        last = self.payments.order_by('-paid_date').first()
+        fields = ['status', 'paid_date', 'updated_at']
+
+        if self.total and paid >= self.total:
+            self.status = self.STATUS_PAID
+            self.paid_date = last.paid_date if last else date.today()
+        elif self.status == self.STATUS_PAID:
+            # платёж удалили или уменьшили — счёт снова ждёт оплаты
+            self.status = (self.STATUS_OVERDUE
+                           if self.due_date and self.due_date < date.today()
+                           else self.STATUS_SENT)
+            self.paid_date = None
+        else:
+            return
+        self.save(update_fields=fields)
+
+
+class InvoicePayment(models.Model):
+    """Платёж по счёту. Счёт может гаситься частями."""
+    METHOD_TRANSFER = 'transfer'
+    METHOD_CASH = 'cash'
+    METHOD_CARD = 'card'
+    METHOD_OTHER = 'other'
+    METHOD_CHOICES = [
+        (METHOD_TRANSFER, 'Банковский перевод'),
+        (METHOD_CASH, 'Наличные'),
+        (METHOD_CARD, 'Карта'),
+        (METHOD_OTHER, 'Прочее'),
+    ]
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Сумма')
+    paid_date = models.DateField(default=date.today, verbose_name='Дата платежа')
+    method = models.CharField(
+        max_length=20, choices=METHOD_CHOICES, default=METHOD_TRANSFER,
+        verbose_name='Способ оплаты')
+    note = models.CharField(max_length=255, blank=True, verbose_name='Примечание')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='registered_payments')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-paid_date', '-id']
+        verbose_name = 'Платёж'
+        verbose_name_plural = 'Платежи'
+
+    def __str__(self):
+        return f'{self.paid_date} — {self.amount} ₽ по {self.invoice.invoice_number}'
+
 
 class InvoiceItem(models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')

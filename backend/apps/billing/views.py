@@ -11,9 +11,10 @@ from django.db.models.functions import TruncMonth
 
 from common.permissions import IsAdmin
 from common.scoping import scope_by_case
-from .models import TimeEntry, Invoice, InvoiceItem
+from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment
 from .serializers import (
-    TimeEntrySerializer, InvoiceSerializer, InvoiceListSerializer, InvoiceItemSerializer
+    TimeEntrySerializer, InvoiceSerializer, InvoiceListSerializer, InvoiceItemSerializer,
+    InvoicePaymentSerializer,
 )
 
 
@@ -168,13 +169,59 @@ def mark_sent_view(request, pk):
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def mark_paid_view(request, pk):
+    """Полная оплата: регистрирует платёж на весь остаток.
+
+    Статус и дата оплаты выводятся из платежей — единый источник правды.
+    """
     invoice = _get_invoice_or_none(request, pk)
     if invoice is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
-    invoice.status = Invoice.STATUS_PAID
-    invoice.paid_date = request.data.get('paid_date') or date.today()
-    invoice.save(update_fields=['status', 'paid_date', 'updated_at'])
+
+    paid_date = request.data.get('paid_date') or date.today()
+    serializer = InvoicePaymentSerializer(
+        data={
+            'invoice': invoice.id,
+            'amount': invoice.balance_due,
+            'paid_date': paid_date,
+            'method': request.data.get('method', InvoicePayment.METHOD_TRANSFER),
+            'note': 'Полная оплата',
+        },
+        context={'request': request},
+    )
+    if invoice.balance_due > 0:
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+    invoice.sync_payment_status()
+    invoice.refresh_from_db()
     return Response(InvoiceSerializer(invoice, context={'request': request}).data)
+
+
+class InvoicePaymentListCreateView(generics.ListCreateAPIView):
+    serializer_class = InvoicePaymentSerializer
+
+    def get_queryset(self):
+        qs = InvoicePayment.objects.select_related('created_by', 'invoice')
+        invoice_id = self.request.query_params.get('invoice')
+        if invoice_id:
+            qs = qs.filter(invoice_id=invoice_id)
+        return scope_by_case(qs, self.request.user, case_field='invoice__case')
+
+    def perform_create(self, serializer):
+        payment = serializer.save()
+        payment.invoice.sync_payment_status()
+
+
+class InvoicePaymentDetailView(generics.RetrieveDestroyAPIView):
+    serializer_class = InvoicePaymentSerializer
+
+    def get_queryset(self):
+        return scope_by_case(InvoicePayment.objects.all(), self.request.user,
+                             case_field='invoice__case')
+
+    def perform_destroy(self, instance):
+        invoice = instance.invoice
+        instance.delete()
+        invoice.sync_payment_status()
 
 
 @api_view(['GET'])

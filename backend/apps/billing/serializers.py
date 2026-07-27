@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from common.scoping import user_can_access_case
-from .models import TimeEntry, Invoice, InvoiceItem
+from .models import TimeEntry, Invoice, InvoiceItem, InvoicePayment
 
 
 def _check_case_access(serializer, case):
@@ -64,8 +64,50 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
         return invoice
 
 
+class InvoicePaymentSerializer(serializers.ModelSerializer):
+    method_display = serializers.CharField(source='get_method_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InvoicePayment
+        fields = ['id', 'invoice', 'amount', 'paid_date', 'method', 'method_display',
+                  'note', 'created_by_name', 'created_at']
+        read_only_fields = ['created_at']
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+
+    def validate_invoice(self, invoice):
+        _check_case_access(self, invoice.case)
+        return invoice
+
+    def validate_amount(self, amount):
+        if amount <= 0:
+            raise serializers.ValidationError('Сумма платежа должна быть больше нуля.')
+        return amount
+
+    def validate(self, attrs):
+        invoice = attrs.get('invoice') or getattr(self.instance, 'invoice', None)
+        amount = attrs.get('amount')
+        if invoice and amount:
+            already = invoice.paid_amount
+            if self.instance:
+                already -= self.instance.amount
+            if already + amount > invoice.total:
+                raise serializers.ValidationError(
+                    {'amount': f'Переплата: к оплате осталось {invoice.total - already} ₽.'})
+        return attrs
+
+    def create(self, validated_data):
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
 class InvoiceSerializer(serializers.ModelSerializer):
     items = InvoiceItemSerializer(many=True, read_only=True)
+    payments = InvoicePaymentSerializer(many=True, read_only=True)
+    paid_amount = serializers.ReadOnlyField()
+    balance_due = serializers.ReadOnlyField()
     case_uuid = serializers.UUIDField(source='case.uuid', read_only=True)
     client_name = serializers.SerializerMethodField()
     client_email = serializers.SerializerMethodField()
@@ -79,6 +121,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'status', 'issue_date', 'due_date', 'paid_date',
             'subtotal', 'tax_rate', 'tax_amount', 'total',
             'notes', 'items', 'time_entries_count',
+            'payments', 'paid_amount', 'balance_due',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['invoice_number', 'tax_amount', 'total', 'created_at', 'updated_at']
@@ -106,12 +149,15 @@ class InvoiceSerializer(serializers.ModelSerializer):
 class InvoiceListSerializer(serializers.ModelSerializer):
     client_name = serializers.SerializerMethodField()
     case_title = serializers.SerializerMethodField()
+    paid_amount = serializers.ReadOnlyField()
+    balance_due = serializers.ReadOnlyField()
 
     class Meta:
         model = Invoice
         fields = [
             'id', 'invoice_number', 'case', 'case_title', 'client', 'client_name',
-            'status', 'issue_date', 'due_date', 'total', 'created_at',
+            'status', 'issue_date', 'due_date', 'total', 'paid_amount', 'balance_due',
+            'created_at',
         ]
 
     def get_client_name(self, obj):

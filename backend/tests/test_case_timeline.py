@@ -1,10 +1,11 @@
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
-from apps.billing.models import Invoice
+from apps.billing.models import Invoice, InvoicePayment
 from apps.cases.models import CaseNote
 from apps.documents.models import Document
 from apps.tasks.models import Task, Event
@@ -28,8 +29,12 @@ def rich_case(case_a, lawyer_a, client_a):
         created_by=lawyer_a, start_datetime=timezone.now() + timedelta(days=2))
     invoice = Invoice.objects.create(
         case=case_a, client=client_a, due_date=date.today() + timedelta(days=10))
-    invoice.paid_date = date.today()
+    invoice.subtotal = Decimal('5000.00')
     invoice.save()
+    # оплата регистрируется платежом — статус счёта производный от них
+    InvoicePayment.objects.create(invoice=invoice, amount=Decimal('5000.00'),
+                                  created_by=lawyer_a)
+    invoice.sync_payment_status()
     case_a.key_deadline = date.today() + timedelta(days=14)
     case_a.key_deadline_note = 'Подача апелляции'
     case_a.save()

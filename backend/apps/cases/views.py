@@ -280,13 +280,18 @@ def case_timeline_view(request, uuid):
             f'{event.get_event_type_display()}: {event.title}', sub, who(event.created_by),
             {'id': event.id})
 
-    for inv in case.invoices.all():
+    for inv in case.invoices.prefetch_related('payments__created_by'):
         add('invoice', inv.created_at, f'Счёт {inv.invoice_number}',
             f'{inv.total} ₽ · срок оплаты {inv.due_date.strftime("%d.%m.%Y")}',
             '', {'id': inv.id, 'status': inv.status})
-        if inv.paid_date:
-            add('invoice_paid', inv.paid_date, f'Счёт {inv.invoice_number} оплачен',
-                f'{inv.total} ₽', '', {'id': inv.id})
+        for pay in inv.payments.all():
+            rest = inv.balance_due
+            sub = pay.get_method_display()
+            if rest > 0:
+                sub += f' · остаток {rest} ₽'
+            add('invoice_paid', pay.paid_date,
+                f'Оплата {pay.amount} ₽ по счёту {inv.invoice_number}',
+                sub, who(pay.created_by), {'id': inv.id})
 
     if case.key_deadline:
         note = case.key_deadline_note or 'Ключевой процессуальный срок'

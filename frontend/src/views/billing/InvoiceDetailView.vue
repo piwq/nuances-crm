@@ -111,6 +111,56 @@
               <span class="font-weight-bold text-h6">Итого</span>
               <span class="font-weight-bold text-h6 text-primary">{{ formatCurrency(invoice.total) }}</span>
             </div>
+            <template v-if="Number(invoice.paid_amount) > 0">
+              <v-progress-linear
+                :model-value="paidPercent"
+                color="success"
+                height="6"
+                rounded
+                class="my-3"
+              />
+              <div class="d-flex justify-space-between text-body-2">
+                <span class="text-success">Оплачено</span>
+                <span class="text-success">{{ formatCurrency(invoice.paid_amount) }}</span>
+              </div>
+              <div v-if="Number(invoice.balance_due) > 0" class="d-flex justify-space-between text-body-2 font-weight-medium">
+                <span>Остаток</span>
+                <span class="text-error">{{ formatCurrency(invoice.balance_due) }}</span>
+              </div>
+            </template>
+          </v-card-text>
+        </v-card>
+
+        <!-- Payments -->
+        <v-card class="mt-4">
+          <v-card-title class="d-flex justify-space-between align-center">
+            Платежи
+            <v-btn
+              v-if="invoice.status !== 'draft' && Number(invoice.balance_due) > 0"
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-plus"
+              @click="openPaymentDialog"
+            >
+              Внести
+            </v-btn>
+          </v-card-title>
+          <v-divider />
+          <v-list v-if="invoice.payments?.length" density="compact">
+            <v-list-item v-for="p in invoice.payments" :key="p.id">
+              <v-list-item-title class="text-body-2 font-weight-medium">
+                {{ formatCurrency(p.amount) }}
+              </v-list-item-title>
+              <v-list-item-subtitle class="text-caption">
+                {{ formatDate(p.paid_date) }} · {{ p.method_display }}<span v-if="p.note"> · {{ p.note }}</span>
+              </v-list-item-subtitle>
+              <template #append>
+                <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error" @click="deletePayment(p)" />
+              </template>
+            </v-list-item>
+          </v-list>
+          <v-card-text v-else class="text-medium-emphasis text-body-2">
+            Платежей пока нет
           </v-card-text>
         </v-card>
       </v-col>
@@ -214,6 +264,52 @@
       </v-card>
     </form-dialog>
 
+    <!-- Payment Dialog -->
+    <form-dialog v-model="paymentDialog" max-width="440">
+      <v-card>
+        <v-card-title>Внести платёж</v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4">
+          <div class="text-body-2 text-medium-emphasis mb-3">
+            Остаток к оплате: <strong>{{ formatCurrency(invoice.balance_due) }}</strong>
+          </div>
+          <v-text-field
+            v-model.number="paymentForm.amount"
+            label="Сумма *"
+            type="number"
+            min="0"
+            :max="Number(invoice.balance_due)"
+            suffix="₽"
+            class="mb-2"
+          />
+          <date-field v-model="paymentForm.paid_date" label="Дата платежа" class="mb-2" />
+          <v-select
+            v-model="paymentForm.method"
+            :items="PAYMENT_METHODS"
+            item-title="label"
+            item-value="value"
+            label="Способ оплаты"
+            class="mb-2"
+          />
+          <v-text-field v-model="paymentForm.note" label="Примечание" />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="paymentDialog = false">Отмена</v-btn>
+          <v-btn
+            color="success"
+            variant="elevated"
+            :loading="savingPayment"
+            :disabled="!paymentForm.amount || paymentForm.amount <= 0"
+            @click="savePayment"
+          >
+            Внести
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </form-dialog>
+
     <!-- Mark Paid Dialog -->
     <v-dialog v-model="paidDialog" max-width="360">
       <v-card>
@@ -263,7 +359,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useBillingStore } from '@/stores/billing'
 import { useNotification } from '@/composables/useNotification'
@@ -295,6 +391,63 @@ const emailMessage = ref('')
 const emailPreviewHtml = ref('')
 const sendingEmail = ref(false)
 let previewTimer = null
+
+const PAYMENT_METHODS = [
+  { value: 'transfer', label: 'Банковский перевод' },
+  { value: 'cash', label: 'Наличные' },
+  { value: 'card', label: 'Карта' },
+  { value: 'other', label: 'Прочее' },
+]
+const paymentDialog = ref(false)
+const savingPayment = ref(false)
+const paymentForm = ref({ amount: null, paid_date: null, method: 'transfer', note: '' })
+
+const paidPercent = computed(() => {
+  const total = Number(invoice.value?.total || 0)
+  if (!total) return 0
+  return Math.min(100, (Number(invoice.value.paid_amount || 0) / total) * 100)
+})
+
+function openPaymentDialog() {
+  paymentForm.value = {
+    amount: Number(invoice.value.balance_due),
+    paid_date: new Date().toISOString().slice(0, 10),
+    method: 'transfer',
+    note: '',
+  }
+  paymentDialog.value = true
+}
+
+async function savePayment() {
+  savingPayment.value = true
+  try {
+    await api.post('/api/v1/billing/payments/', {
+      invoice: invoice.value.id,
+      ...paymentForm.value,
+    })
+    await load()
+    success('Платёж внесён')
+    paymentDialog.value = false
+  } catch (e) {
+    const data = e.response?.data
+    error(data?.amount?.[0] || data?.detail || 'Ошибка сохранения платежа')
+  } finally {
+    savingPayment.value = false
+  }
+}
+
+async function deletePayment(payment) {
+  const ok = await confirm('Удалить платёж?',
+    `${formatCurrency(payment.amount)} от ${formatDate(payment.paid_date)}`)
+  if (!ok) return
+  try {
+    await api.delete(`/api/v1/billing/payments/${payment.id}/`)
+    await load()
+    success('Платёж удалён')
+  } catch {
+    error('Ошибка удаления')
+  }
+}
 
 const itemFormRef = ref(null)
 const savingItem = ref(false)

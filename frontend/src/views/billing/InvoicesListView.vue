@@ -65,7 +65,10 @@
         </template>
 
         <template #item.total="{ item }">
-          <span class="font-weight-medium">{{ formatCurrency(item.total) }}</span>
+          <div class="font-weight-medium">{{ formatCurrency(item.total) }}</div>
+          <div v-if="Number(item.paid_amount) > 0 && Number(item.balance_due) > 0" class="text-caption text-warning">
+            остаток {{ formatCurrency(item.balance_due) }}
+          </div>
         </template>
       </v-data-table-server>
     </v-card>
